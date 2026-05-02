@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "NONE",
+    "raw_text": "OK  [TC-F-003] lu_factor: Explicit-shape Fortran array a(lda,n) with raw\n    pointer 'double*' in C. Memory layout identical (column-major, flat\n    storage). lda convention correctly handles leading dimension.\n    No errors \u2014 this is the standard LAPACK interface pattern."
+  }
+]

@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "WARNING",
+    "raw_text": "WARNING [TC-B-004] interface.f90:5 <-> header.h:2  param[1] 'offset'\n  PLATFORM_DEPENDENT: INTEGER(c_long) / C 'long' are both platform-dependent.\n  Linux LP64: 8 bytes. Windows LLP64: 4 bytes. Interface is non-portable.\n  Recommend: use INTEGER(c_int64_t) / int64_t for explicit 64-bit offsets."
+  }
+]

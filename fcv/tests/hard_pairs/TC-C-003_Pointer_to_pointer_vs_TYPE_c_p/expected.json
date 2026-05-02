@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-C-003] interface.f90:5 <-> header.h:2  param[0] 'buf'\n  POINTER_DEPTH: Fortran TYPE(c_ptr) without VALUE passes void** (pointer\n  to pointer). C prototype declares void* (single pointer). Callee writes\n  to the address stored in 'buf', which C sees as the pointed-to data.\n  Allocator writes to wrong location; likely heap corruption.\n\nNOTE: Fix: add VALUE to Fortran 'buf' if C expects void*, or change\n      C prototype to void **buf."
+  }
+]

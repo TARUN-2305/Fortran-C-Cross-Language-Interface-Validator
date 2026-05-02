@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-F-001] interface.f90:5 <-> header.h:2  param[0] 'x'\n  ARRAY_DESCRIPTOR: Fortran assumed-shape array x(:) passes a CFI_cdesc_t*\n  (array descriptor: base_addr, elem_len, version, rank, type, attribute,\n  dim[0].lower_bound, dim[0].extent, dim[0].sm).\n  C prototype declares 'double*' (raw pointer, 8 bytes).\n  Callee interprets the descriptor struct as a pointer: reads 8 bytes from\n  the descriptor's base_addr field and attempts to normalize from there.\n  Immediate crash or silent wrong access pattern.\n\nNOTE: Fix: use explicit-shape (x(n)) or assumed-size (x(*)) with a separate\n      size parameter, OR change C to accept CFI_cdesc_t* and use TS 29113\n      C descriptors."
+  }
+]

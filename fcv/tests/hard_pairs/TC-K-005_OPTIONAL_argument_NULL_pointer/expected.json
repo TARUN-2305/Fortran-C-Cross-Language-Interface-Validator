@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "WARNING",
+    "raw_text": "WARNING [TC-K-005] interface.f90:7 <-> header.h:2  param[2] 'tol'\n  OPTIONAL_NULL: Fortran OPTIONAL argument 'tol' passes NULL when absent\n  (Fortran 2018 \u00a718.10.2). C prototype 'double *tol' with no annotation.\n  If C code dereferences 'tol' without checking for NULL, segfault occurs\n  when caller omits 'tol'.\n\nWARNING [TC-K-005] interface.f90:8 <-> header.h:2  param[3] 'max_iter'\n  OPTIONAL_NULL: Same for 'max_iter'.\n\nNOTE: C side must guard: if (tol) { ... } before every dereference.\n      Document that NULL means \"use default\". This is non-standard Flang\n      extension \u2014 OPTIONAL in BIND(C) is implementation-defined."
+  }
+]

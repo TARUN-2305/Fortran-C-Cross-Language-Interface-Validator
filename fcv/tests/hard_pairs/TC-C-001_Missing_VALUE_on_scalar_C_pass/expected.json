@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-C-001] interface.f90:6 <-> header.h:2  param[1] 'n'\n  VALUE_MISMATCH: Fortran 'n' lacks VALUE attribute (pass-by-reference).\n  C prototype passes 'int n' by value. Fortran will dereference the integer\n  value 'n' as a memory address. Immediate segfault on access.\n\nERROR   [TC-C-001] interface.f90:7 <-> header.h:2  param[2] 'alpha'\n  VALUE_MISMATCH: Fortran 'alpha' lacks VALUE attribute. C passes 'double'\n  by value (8 bytes in XMM0). Fortran dereferences XMM0 as pointer."
+  }
+]

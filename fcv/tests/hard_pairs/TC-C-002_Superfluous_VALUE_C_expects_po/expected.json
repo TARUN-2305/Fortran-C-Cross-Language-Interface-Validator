@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-C-002] interface.f90:5 <-> header.h:2  param[0] 'count'\n  VALUE_MISMATCH: Fortran 'count' has VALUE attribute (receives copy of int).\n  C prototype passes 'int *count' (8-byte pointer). Fortran reads the low 32\n  bits of the pointer address as the integer value. Silent wrong result;\n  increment is lost; caller's variable never updated."
+  }
+]

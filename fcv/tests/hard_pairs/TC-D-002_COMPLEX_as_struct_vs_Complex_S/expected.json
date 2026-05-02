@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "WARNING",
+    "raw_text": "WARNING [TC-D-002] interface.f90:7 <-> header.h:3  param[2] 'phase'\n  COMPLEX_STRUCT_ABI: COMPLEX(c_double_complex) passed by value maps to\n  C99 'double _Complex' (two XMM registers per SysV AMD64 ABI).\n  C prototype uses 'struct { double re; double im; }' passed by value.\n  Structs > 16 bytes pass on stack; 'double _Complex' passes in registers.\n  Here size is exactly 16 bytes \u2014 ABI is coincidentally correct on x86-64\n  but NOT guaranteed. Undefined behaviour on ARM64 / RISC-V.\n\nNOTE: Prefer 'double _Complex' in C for guaranteed interoperability."
+  }
+]

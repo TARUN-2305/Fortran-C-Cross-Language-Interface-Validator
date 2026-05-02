@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "WARNING",
+    "raw_text": "WARNING [TC-G-003] interface.f90:5 <-> header.h:2  param[0] 'cproc'\n  PLATFORM_FUNPTR_ALIGN: On Apple ARM64 (M1/M2/M3), C functions at 4-byte\n  aligned addresses have bit 2 set in their pointer. Fortran C_F_PROCPOINTER\n  clears bit 2. If the C function is not 8-byte aligned, the resulting\n  Fortran procedure pointer points 4 bytes past the entry point.\n  Immediate crash or wrong behaviour.\n  Mitigation: compile C source with -falign-functions=8."
+  }
+]

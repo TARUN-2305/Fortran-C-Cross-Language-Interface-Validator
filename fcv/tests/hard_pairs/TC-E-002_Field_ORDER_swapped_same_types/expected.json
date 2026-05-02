@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-E-002] interface.f90:3 <-> header.h:2  struct particle\n  FIELD_ORDER: Field[0] Fortran='mass'(REAL(c_double)), C='charge'(double).\n               Field[1] Fortran='charge'(REAL(c_double)), C='mass'(double).\n  Types are compatible but order is swapped. Mass/charge values will be\n  exchanged. Silent wrong-answer bug in physics simulations.\n\nNOTE: Fortran field NAMES are irrelevant per Fortran 2003 \u00a715.3.4.\n      Field positions and types must match positionally."
+  }
+]

@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "WARNING",
+    "raw_text": "WARNING [TC-F-002] interface.f90:6 <-> header.h:2  param[0] 'a'\n  COLUMN_ROW_MAJOR: Fortran 2D array a(m,n) is column-major.\n  C 2D array a[m][n] is row-major. Element a(i,j) in Fortran = a[j-1][i-1]\n  in C. If C code iterates a[i][j], it reads the TRANSPOSE of the Fortran\n  matrix. Silent wrong results in any matrix computation.\n\nNOTE: Either transpose on entry/exit, use LAPACK's leading-dimension\n      convention (treat as 1D flat array with stride), or document that\n      C caller must use column-major indexing (a[j][i])."
+  }
+]

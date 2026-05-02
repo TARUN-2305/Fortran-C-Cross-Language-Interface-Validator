@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-B-002] interface.f90:2 <-> header.h:2\n  RETURN_TYPE: Fortran REAL(c_float) returns 4-byte float in XMM0[31:0].\n  C prototype declares return type 'double' (8 bytes). Caller reads 8 bytes;\n  upper 32 bits are undefined. Silent garbage result.\n\nERROR   [TC-B-002] interface.f90:2 <-> header.h:2  param[0]/param[1]\n  PARAM_ORDER: Fortran has (x, n); C has (n, x). Parameters are swapped."
+  }
+]

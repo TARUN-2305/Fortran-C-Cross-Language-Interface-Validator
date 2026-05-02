@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.vscode/
+.idea/
+*.log
+debug_c.py
+debug_f.py
+test.f90
+test.h

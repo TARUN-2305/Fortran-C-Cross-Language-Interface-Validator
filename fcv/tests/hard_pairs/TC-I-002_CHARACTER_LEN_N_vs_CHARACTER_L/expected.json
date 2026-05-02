@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "NONE",
+    "raw_text": "OK  [TC-I-002] process_name: CHARACTER(c_char, LEN=32) occupies 32 bytes\n    contiguously. C char[32] is 32 bytes contiguously. Memory layout is\n    identical. No hidden length argument (BIND(C) suppresses it).\n\nNOTE: Semantically different in Fortran (scalar vs array) but byte-identical\n      for interop when BIND(C) is used. No error."
+  }
+]

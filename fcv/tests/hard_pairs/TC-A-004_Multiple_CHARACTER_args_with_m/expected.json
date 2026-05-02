@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-A-004] interface.f90:3 <-> header.h:2\n  HIDDEN_STRLEN_ARG: 'name' (CHARACTER(*)) adds hidden size_t after arg 7.\n  HIDDEN_STRLEN_ARG: 'opts' (CHARACTER(*)) adds hidden size_t after arg 8.\n  C prototype has 7 parameters; effective Fortran ABI has 9. Stack smash."
+  }
+]

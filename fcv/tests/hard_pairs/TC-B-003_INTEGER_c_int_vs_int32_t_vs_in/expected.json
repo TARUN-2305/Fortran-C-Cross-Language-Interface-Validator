@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "NONE",
+    "raw_text": "OK  [TC-B-003] set_dims: int / int32_t / signed int all resolve to 4 bytes.\n    Compatible with INTEGER(c_int). No errors."
+  }
+]
