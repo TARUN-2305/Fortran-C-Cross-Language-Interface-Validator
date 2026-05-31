@@ -39,7 +39,7 @@ The parser performs a depth-first pre-order traversal of the compiled AST, selec
 
 ### Typedef Resolution Chain
 A critical advantage of using `libclang` is the automatic traversal of typedef chains. The tool resolves deep definitions like:
-$$\text{lapack\_int} \longrightarrow \text{int32\_t} \longrightarrow \text{int} \longrightarrow 4\text{ bytes}$$
+`lapack_int` ⟶ `int32_t` ⟶ `int` ⟶ `4 bytes`
 This is achieved by accessing Clang's canonical type representation:
 ```python
 # Automatically resolves typedefs to underlying canonical types
