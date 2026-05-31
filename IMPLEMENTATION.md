@@ -92,18 +92,43 @@ Verifies that parameter widths match precisely.
 
 ### Case C: Value vs Reference Attributes
 For standard scalar parameters, C passes variables by value by default, whereas Fortran passes by reference (pointer) unless the `VALUE` attribute is explicitly specified.
-- **Detection**:
-  - If C parameter is a pointer $\longrightarrow$ Fortran must NOT have `VALUE` (or must have pointer type).
-  - If C parameter is a direct value $\longrightarrow$ Fortran MUST have `VALUE` specified.
 
-### Case D: Complex Return ABI Mismatch
-Different platform ABIs return complex numbers differently (e.g., returning via registers vs returning via an implicit first argument pointer, known as structure-return or `sret`).
-- **Detection**:
-  - Compares if a procedure returns a `complex` type.
-  - Warns about compiler-specific structure-return ABI alignment requirements.
+---
 
-### Case E: Struct Member Layout & Offsets
-Aligns Fortran `TYPE, BIND(C)` blocks with C `struct` types.
-- **Detection**:
-  - Recursively compares struct elements one by one.
-  - Throws `FIELD_ORDER` if members are swapped, or `FIELD_OFFSET` if spacing/padding differences shift memory alignments.
+## 4. The Assumed-Shape Array Descriptor Trap (`CFI_cdesc_t`)
+
+When a Fortran interface defines an assumed-shape array (e.g., `real :: x(:)`), the compiler does not pass a raw address. Instead, it passes a descriptor structure defined by the modern ISO C Interoperability standard (`ISO_Fortran_binding.h`):
+
+```c
+/* ISO_Fortran_binding.h equivalent representation */
+typedef struct CFI_cdesc_t {
+    void *base_addr;           // Raw pointer to array start
+    size_t elem_len;           // Size of an element in bytes
+    int version;               // CFI_VERSION
+    CFI_attribute_t attribute; // Assumed, allocatable, or pointer
+    CFI_type_t type;           // Element type code
+    CFI_rank_t rank;           // Dimensions
+    CFI_dim_t dim[];           // Bounds info (rank elements)
+} CFI_cdesc_t;
+```
+
+A C function expecting a simple `double*` will read this structure as raw float data, causing a segmentation fault.
+
+FCValidator detects this in the **Comparator Engine** by analyzing the rank specification:
+```python
+if isinstance(ft, ArrayType) and ft.is_assumed_shape:
+    if not isinstance(ct, StructType) or "CFI_cdesc_t" not in ct.name:
+        self._add_mismatch(
+            category="ARRAY_DESCRIPTOR",
+            severity="ERROR",
+            message="Fortran assumed-shape passes CFI_cdesc_t descriptor. C header must receive CFI_cdesc_t*."
+        )
+```
+
+---
+
+## 5. Case D: Complex Return Call-Stack ABI
+Functions returning `COMPLEX` values are returned differently depending on compiler ABI:
+- **Direct Return**: Returned via standard registers (e.g. `xmm0/xmm1` on x86_64).
+- **Structure Return (`sret`)**: The compiler silently inserts an implicit first parameter (the `sret` pointer) representing the return address of the structure, shifting all actual parameter positions by one.
+FCValidator flags complex returns lacking the `BIND(C)` attribute to protect developers from call-stack displacement.

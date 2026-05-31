@@ -71,9 +71,49 @@ fcv validate src/interface.f90 include/header.h --platform lp64
 ```
 
 ### CLI Command Options:
-* `--platform`: Specify the target integer model. `lp64` (Linux/macOS defaults where `long` is 8 bytes) or `ilp64` (specialized 64-bit integer models).
+* `--platform`: Specify the target integer model. `lp64` (Linux/macOS defaults where `long` is 8 bytes), `ilp64` (specialized 64-bit integer models), or `llp64` (Windows 64-bit model where `long` is 4 bytes).
 * `--format`: Output format: `text` (default rich console table), `json` (for scripting pipelines), or `sarif` (for GitHub Security Code Scanning).
 * `--severity`: Filter the output by `info`, `warning`, or `error`. Default is `warning`.
+
+---
+
+## 🖥️ Troubleshooting Clang System Headers
+Because `libclang` parses C headers using actual compiler frontends, it requires access to standard system headers (e.g., `<stdint.h>`, `<stddef.h>`).
+* **Ubuntu/Debian:** Ensure `libclang-dev` is installed (handled automatically by `./build.sh`).
+* **Windows (PowerShell):** If Clang cannot resolve system headers, configure your shell include environment variable pointing to Visual Studio or compiler directories:
+  ```powershell
+  $env:C_INCLUDE_PATH="C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\<version>\include"
+  ```
+
+---
+
+## 🤖 CI/CD Integration (GitHub Actions)
+Integrate `fcvalidator` directly into your pull-request pipeline to block mismatched interfaces before they are merged:
+```yaml
+name: ABI Static Verification
+on: [push, pull_request]
+
+jobs:
+  validate-abi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install FCValidator
+        run: |
+          sudo apt-get install -y libclang-dev
+          pip install .
+      - name: Run Verification
+        run: |
+          fcv validate src/interface.f90 include/header.h --format sarif > fcv-results.sarif
+      - name: Upload SARIF Results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: fcv-results.sarif
+```
 
 ---
 

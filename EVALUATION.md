@@ -4,7 +4,25 @@ This document evaluates the diagnostic capability, correctness, and real-world a
 
 ---
 
-## 1. Feature Baseline Comparison
+## 1. ❌ The Core Toolchain Failure: Why Compilers & Linkers are Blind
+HPC developers often ask: *Why doesn't my compiler or linker catch these mismatches?*
+The answer lies in the classic separated compilation model:
+
+```
+[interface.f90] ------(gfortran)------> [interface.o] (Exports symbol: dgemm_)
+                                                             |
+                                                             | (Linker matches strings only)
+                                                             v
+[header.c] -----------(gcc)-----------> [header.o]    (Imports symbol: dgemm_)
+```
+
+1. **Compilers lack cross-file visibility:** `gfortran` has no access to C headers, and `gcc` has no access to Fortran modules.
+2. **Linkers only match strings:** The linker (`ld` or `lld`) matches symbols by their mangled string names (e.g., `_dgemm_core_`). It has **zero awareness** of parameter lists, type widths, or stack offsets. If the symbol exists, it links.
+3. **FCValidator bridges this gap:** By parsing both interfaces before object file compilation, it acts as a unified static link auditor.
+
+---
+
+## 2. Feature Baseline Comparison
 
 To demonstrate why FCValidator is essential for mixed-language systems, we compare its static diagnostic capabilities against standard compilers, linkers, and traditional checkers:
 
@@ -19,7 +37,24 @@ To demonstrate why FCValidator is essential for mixed-language systems, we compa
 
 ---
 
-## 2. 🔬 Case Study 1: The Story of a Silent Stack Corruptor (TC-A-001)
+## 3. 📊 Diagnostic Suite Composition
+
+The test suite consists of **68 distinct test execution scenarios** mapped across **36 standard edge-case IDs** categorized as follows:
+
+| Category | Primary ABI Risk | Number of Scenarios | Key Diagnostic IDs |
+| :--- | :--- | :---: | :--- |
+| **A: Interface Attributes** | Missing BIND(C), Symbol Mangling, String lengths | 8 | TC-A-001 to TC-A-004 |
+| **B: Scalar Interoperability** | Platform integer width, FP precision | 10 | TC-B-001 to TC-B-005 |
+| **C: Argument Passing** | Pass-by-value vs. Pass-by-reference | 6 | TC-C-001 to TC-C-003 |
+| **D: Complex & Struct ABIs** | Complex layout structures, sret register traps | 8 | TC-D-001 to TC-D-003 |
+| **E: Memory Offsets** | Derived type field padding, offsets, packing | 8 | TC-E-001 to TC-E-004 |
+| **F: Array Layouts** | Assumed shape CFI descriptors, column major | 12 | TC-F-001 to TC-F-003 |
+| **G: Function Pointers** | Callbacks, Apple M-series align traps | 8 | TC-G-001 to TC-G-003 |
+| **H-K: Edge & Alias Scenarios** | Logical mappings, optional params, aliases | 8 | TC-H-001 to TC-K-005 |
+
+---
+
+## 4. 🔬 Case Study 1: The Story of a Silent Stack Corruptor (TC-A-001)
 
 ### The Scenario
 A high-performance linear algebra library (like reference-LAPACK) provides a C wrapper (`LAPACKE`) that interfaces with legacy Fortran 77/90 numerical cores. The wrapper declares a C binding for the matrix multiplication core `dgemm_core`:
@@ -61,7 +96,7 @@ By identifying the missing `BIND(C)` and character length injections at compile-
 
 ---
 
-## 3. 🔬 Case Study 2: The Integer Width Portability Nightmare (TC-B-001)
+## 5. 🔬 Case Study 2: The Integer Width Portability Nightmare (TC-B-001)
 
 ### The Scenario
 In modern sparse matrix solvers, large array sizes are processed. A developer declares a sparse matrix multiplication subroutine in C:
@@ -102,7 +137,7 @@ FCValidator alerts the developer *before* compiling for the target architecture,
 
 ---
 
-## 4. 📊 Actual Test Cases & Real-Tool Diagnostics
+## 6. 📊 Actual Test Cases & Real-Tool Diagnostics
 
 The following table documents the **actual results of all 36 edge-case scenarios** executed directly by the FCValidator engine under the `LP64` platform model:
 
@@ -120,7 +155,7 @@ The following table documents the **actual results of all 36 edge-case scenarios
 | **TC-C-001** | Missing VALUE on scalar C pass | Value/reference mismatch | ERROR | ERROR: Parameter 'n' passed by reference in Fortran, but by value in C <br> ERROR: Parameter 'alpha' passed by reference in Fortran, but by value in C |
 | **TC-C-002** | Superfluous VALUE C expects po | Value/reference mismatch | ERROR | ERROR: Parameter 'count' passed by VALUE in Fortran, but pointer in C |
 | **TC-C-003** | Pointer to pointer vs TYPE c p | Type category mismatch | ERROR | ERROR: Parameter 'size' fundamental category mismatch |
-| **TC-D-001** | COMPLEX return value sret vs r | PARAM_ORDER, Complex ABI mismatch, Parameter count mismatch | ERROR | ERROR: Fortran has 2 params, C has 3 <br> ERROR: Parameter name swap: a vs result <br> ERROR: Parameter 'a' is Fortran COMPLEX but C uses a struct instead of _Complex <br> ERROR: Parameter 'b' is Fortran COMPLEX but C uses a struct instead of _Complex <br> ERROR: Parameter 'a' is Fortran COMPLEX but C uses a struct instead of _Complex <br> ERROR: Parameter 'b' is Fortran COMPLEX but C uses a struct instead of _Complex |
+| **TC-D-001** | COMPLEX return value sret vs r | PARAM_ORDER, Complex ABI mismatch, Parameter count mismatch | ERROR | ERROR: Fortran has 2 params, C has 3 <br> ERROR: Parameter name swap: a vs result <br> ERROR: Parameter 'a' is Fortran COMPLEX but C uses a struct instead of _Complex <br> ERROR: Parameter name swap: b vs a <br> ERROR: Parameter 'b' is Fortran COMPLEX but C uses a struct instead of _Complex <br> ERROR: Parameter 'a' is Fortran COMPLEX but C uses a struct instead of _Complex <br> ERROR: Parameter 'b' is Fortran COMPLEX but C uses a struct instead of _Complex |
 | **TC-D-002** | COMPLEX as struct vs Complex S | COMPLEX_STRUCT_ABI, Type category mismatch, Complex ABI mismatch | WARNING | ERROR: Parameter 'data' fundamental category mismatch <br> WARNING: Complex passed as struct <br> ERROR: Parameter 'phase' is Fortran COMPLEX but C uses a struct instead of _Complex |
 | **TC-D-003** | DOUBLE COMPLEX function with w | Return type mismatch, Parameter count mismatch | ERROR | ERROR: Fortran has 0 params, C has 5 <br> ERROR: Function vs Subroutine mismatch: Fortran returns void, C returns value |
 | **TC-E-001** | Mixed size fields causing padd | Parameter count mismatch | ERROR | ERROR: Fortran has 0 params, C has 1 |
@@ -147,7 +182,7 @@ The following table documents the **actual results of all 36 edge-case scenarios
 
 ---
 
-## 5. Real-World Evaluation: Reference LAPACK
+## 7. Real-World Evaluation: Reference LAPACK
 
 ### Target System
 - **Library**: `Reference-LAPACK` (v3.11.0)

@@ -1,7 +1,7 @@
 # DESIGN.md — FCValidator Architecture & Design Decisions
 
 ## 1. Problem Statement
-In scientific computing and high-performance computing (HPC), hybrid codebases mixing Fortran and C are extremely common (e.g., LAPACK, PETSc, WRF). These languages interface at the binary level, but compilers compiled them independently. Historically, developers have had to manually ensure that:
+In scientific computing and high-performance computing (HPC), hybrid codebases mixing Fortran and C are extremely common (e.g., LAPACK, PETSc, WRF). These languages interface at the binary level, but compilers compile them independently. Historically, developers have had to manually ensure that:
 1. Every Fortran `BIND(C)` interface matches the corresponding C header signature.
 2. Scalar types have matching bit-widths (e.g., matching a 4-byte `INTEGER(c_int)` to a 4-byte C `int`, or an 8-byte `INTEGER(c_double)` to a C `double`).
 3. Calling conventions, pass-by-value vs pass-by-reference semantics, and struct layouts match precisely.
@@ -80,29 +80,45 @@ At the core of the IR are:
 
 ---
 
-## 4. The Type Mapping Strategy
+## 4. The Type Mapping Strategy & 64-bit ABI Data Models
 
-Rather than relying on naive type name comparison (which fails on standard type synonyms like `long long` vs `int64_t`), FCValidator resolves all types to their absolute physical byte representation based on the selected platform ABI model (e.g., `LP64` vs `ILP64`).
+Rather than relying on naive type name comparison (which fails on standard type synonyms like `long long` vs `int64_t`), FCValidator resolves all types to their absolute physical byte representation based on the selected platform data model. 
 
-### Type Map Reference (LP64 Default)
+### 🌐 The Three 64-bit ABI Integer Models
+Mixed-language codebases face catastrophic failures when ported across operating systems due to variations in 64-bit integer representation models. FCValidator supports three distinct target platform ABI architectures:
 
-| Fortran ISO_C_BINDING | Target C Type | Canonical IR Base | IR Bytes |
-| :--- | :--- | :--- | :--- |
-| `c_int` | `int` | `integer` | 4 |
-| `c_short` | `short` | `integer` | 2 |
-| `c_long` | `long` | `integer` | 8 |
-| `c_long_long` | `long long` | `integer` | 8 |
-| `c_float` | `float` | `real` | 4 |
-| `c_double` | `double` | `real` | 8 |
-| `c_bool` | `_Bool` | `logical` | 1 |
-| `c_ptr` | `void*` / Pointer | `integer` | 8 (Pointer) |
-| `c_funptr` | Function Pointer | `integer` | 8 (FunPtr) |
+| Data Type | LP64 (Standard Linux / macOS) | ILP64 (Specialized HPC e.g., Cray) | LLP64 (Windows 64-bit) |
+| :--- | :---: | :---: | :---: |
+| `int` | 4 bytes | 8 bytes | 4 bytes |
+| `short` | 2 bytes | 2 bytes | 2 bytes |
+| `long` | 8 bytes | 8 bytes | 4 bytes |
+| `long long` | 8 bytes | 8 bytes | 8 bytes |
+| Pointer (`void*`) | 8 bytes | 8 bytes | 8 bytes |
+| **Fortran `integer`** | 4 bytes | 8 bytes | 4 bytes |
 
-When the **Comparator Engine** checks parameters, it compares these canonical tuples. For example, comparing a Fortran `INTEGER(c_int)` to a C `long` on LP64 maps to `(integer, 4)` vs `(integer, 8)`, triggering an immediate `TYPE_WIDTH` error.
+When the **Comparator Engine** checks parameters, it compares these canonical tuples. For example, comparing a Fortran `INTEGER` to a C `long` on LP64 maps to `(integer, 4)` vs `(integer, 8)`, triggering an immediate `TYPE_WIDTH` error. If LLP64 is active on Windows, however, both map to `(integer, 4)`, validating correctly.
 
 ---
 
-## 5. Alternatives Considered & Rationale
+## 5. 📐 Structural Layout and Padding Integrity
+
+Unlike basic scalar arrays, C structures are subject to target-dependent alignment rules. For example, standard 64-bit CPUs require types to align to memory addresses divisible by their size. The compiler inserts implicit padding bytes between struct fields to satisfy natural alignment requirements:
+
+```c
+struct GridPoint {
+    char active;       // 1 byte
+    // 7 bytes of compiler-inserted padding (implicit)
+    double coordinate; // 8 bytes
+}; // Total size = 16 bytes
+```
+
+If Fortran maps this without modern `BIND(C)` derived type syntax, it may compact the structure to **9 bytes** inside the memory segment, shifting all subsequent fields out of register offsets.
+
+FCValidator's **ABI Analysis Engine** goes beyond simple sequential comparisons. It extracts the raw compile-time byte offsets from the Clang AST and cross-checks them against the Fortran layout calculation. A mismatch in alignment offsets triggers a `FIELD_OFFSET` error, identifying mismatched padding.
+
+---
+
+## 6. Alternatives Considered & Rationale
 
 | Alternative | Rationale for Rejection |
 | :--- | :--- |
@@ -113,7 +129,7 @@ When the **Comparator Engine** checks parameters, it compares these canonical tu
 
 ---
 
-## 6. Output Generation & Extensibility
+## 7. Output Generation & Extensibility
 To support developer terminals and CI/CD pipelines, FCValidator supports multiple output formats:
 - **Text**: Utilizes Python's `rich` library to render a colored, readable, structured markdown table directly to the console.
 - **JSON**: Outputs fully structured machine-readable error lists, perfect for integration into automated test scripts.
