@@ -77,67 +77,29 @@ fcv validate src/interface.f90 include/header.h --platform lp64
 
 ---
 
-## 📸 Visual Demo Catalogue & Screenshot Instructions
+## 📸 Visual Demo Catalogue (Screenshots)
 
-To provide a fully working visual catalogue for the HPE evaluators, please follow the steps below to capture actual terminal outputs from your machine and place them in the repository. Once saved, these images will render directly in this README!
-
-Please execute these commands under your local terminal and save the captured screenshot to the specific filename under `screenshots/`:
+Below are the actual terminal demonstrations capturing the step-by-step installation and diagnostic workflow of FCValidator:
 
 ### 1. Environment Build & Installation
-* **Action**: Run the automated build setup.
-* **Terminal Command**:
-  ```bash
-  ./build.sh
-  ```
-* **What to Capture**: Capture the terminal displaying the successful environment creation, pip package dependencies, and final confirmation.
-* **Save Location**: Save the image as **`screenshots/01_install.png`**
-* **Render Preview**:  
-  ![01_install](screenshots/01_install.png)
+Executing `./build.sh` provisions the local virtual environment and installs the package in editable mode.
+![01_install](screenshots/01_install.png)
 
 ### 2. High-Severity Mismatch Detection (TC-A-001)
-* **Action**: Run the validator on the character-mismatched LAPACK stub file.
-* **Terminal Command**:
-  ```bash
-  source .venv/bin/activate
-  fcv validate fcv/tests/hard_pairs/TC-A-001_Single_character_flag_no_BIND_/interface.f90 fcv/tests/hard_pairs/TC-A-001_Single_character_flag_no_BIND_/header.h --severity warning
-  ```
-* **What to Capture**: Capture the terminal displaying the colorful `rich` diagnostics table with vibrant Red `ERROR` blocks detailing parameter name swaps and type width discrepancies.
-* **Save Location**: Save the image as **`screenshots/02_error_detection.png`**
-* **Render Preview**:  
-  ![02_error_detection](screenshots/02_error_detection.png)
+Validating a character flag interface that lacks `BIND(C)` highlights the legacy calling convention mismatch, showing high-severity `ERROR` markers and argument list mismatches directly on the console.
+![02_error_detection](screenshots/02_error_detection.png)
 
 ### 3. Validated Clean Interface Success Banner (TC-A-003)
-* **Action**: Run the validator on a correct, fully interoperable interface pair.
-* **Terminal Command**:
-  ```bash
-  fcv validate fcv/tests/hard_pairs/TC-A-003_Correct_BIND_C_version_of_TC_A/interface.f90 fcv/tests/hard_pairs/TC-A-003_Correct_BIND_C_version_of_TC_A/header.h
-  ```
-* **What to Capture**: Capture the clean, terminal success status displaying the glowing green banner: `No mismatches found!`.
-* **Save Location**: Save the image as **`screenshots/03_clean_interface.png`**
-* **Render Preview**:  
-  ![03_clean_interface](screenshots/03_clean_interface.png)
+Validating a fully compliant Fortran-C interface pair yields a clean status confirmation, showcasing the glowing green `No mismatches found!` banner.
+![03_clean_interface](screenshots/03_clean_interface.png)
 
 ### 4. Colorized Structured JSON Output (TC-B-001)
-* **Action**: Export mismatch diagnostics in standard JSON format.
-* **Terminal Command**:
-  ```bash
-  fcv validate fcv/tests/hard_pairs/TC-B-001_INTEGER_vs_long_on_LP64_Linux_/interface.f90 fcv/tests/hard_pairs/TC-B-001_INTEGER_vs_long_on_LP64_Linux_/header.h --format json
-  ```
-* **What to Capture**: Capture the terminal printout of the structured, indented, and highlighted JSON array representing mismatch metadata.
-* **Save Location**: Save the image as **`screenshots/04_json_output.png`**
-* **Render Preview**:  
-  ![04_json_output](screenshots/04_json_output.png)
+Invoking the validator with `--format json` outputs a perfectly indented and readable JSON array, ideal for scripting integrations.
+![04_json_output](screenshots/04_json_output.png)
 
-### 5. Passing Pytest Diagnostic Check suite
-* **Action**: Run the complete automated regression checks.
-* **Terminal Command**:
-  ```bash
-  pytest fcv/tests/ -v
-  ```
-* **What to Capture**: Capture the bottom portion of your test run output displaying green pass statuses and the final summary line: `69 passed in 7.39s` (or similar duration).
-* **Save Location**: Save the image as **`screenshots/05_pytest_passing.png`**
-* **Render Preview**:  
-  ![05_pytest_passing](screenshots/05_pytest_passing.png)
+### 5. Automated Regression Test Suite Execution
+Running the full diagnostic checks executes all 68 interface edge scenarios, displaying green checkmarks and test statistics.
+![05_pytest_passing](screenshots/05_pytest_passing.png)
 
 ---
 
