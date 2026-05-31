@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-D-001] interface.f90:2 <-> header.h:3\n  COMPLEX_RETURN_ABI: Fortran COMPLEX(c_float_complex) with BIND(C) returns\n  value in XMM0 registers per System V AMD64 ABI.\n  C prototype declares void return with hidden sret pointer (f2c legacy).\n  These conventions are mutually incompatible.\n  BIND(C) guarantees register return; remove the sret convention from C.\n\nNOTE: Compiled with -ff2c flag? Mixes incompatibly with BIND(C) code."
+  }
+]

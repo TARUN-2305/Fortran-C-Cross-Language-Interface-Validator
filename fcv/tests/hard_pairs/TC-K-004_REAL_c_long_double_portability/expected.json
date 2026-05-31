@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "WARNING",
+    "raw_text": "WARNING [TC-K-004] interface.f90:5 <-> header.h:2\n  LONG_DOUBLE_PORTABILITY: REAL(c_long_double) / 'long double' width is\n  platform-defined:\n    x86-64 Linux (gfortran): 80-bit extended (16 bytes with 6 padding)\n    x86-64 Windows (MSVC):   64-bit double (8 bytes) \u2014 C_LONG_DOUBLE = -1!\n    Apple ARM64 (clang):      128-bit quad (16 bytes, IEEE 754-2008)\n    IBM PowerPC (xlf):        128-bit IBM double-double (16 bytes)\n  Interface is correct on Linux but silently wrong width on Windows.\n  C_LONG_DOUBLE is -1 on platforms where long double is unsupported.\n\nNOTE: Check iso_c_binding::C_LONG_DOUBLE /= -1 at compile time.\n      For portable 128-bit: use REAL(c_float128) if available (GCC extension)."
+  }
+]

@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-E-004] interface.f90:6 <-> header.h:3  struct outer_t\n  NESTED_NON_BIND: Field 'inner' is of type 'inner_t' which lacks BIND(C).\n  A BIND(C) derived type must have all components of interoperable type.\n  Fortran 2003 \u00a715.3.4 C1505: violation. Struct layout is undefined.\n\nNOTE: Add BIND(C) to 'inner_t' and ensure all its fields are interoperable."
+  }
+]

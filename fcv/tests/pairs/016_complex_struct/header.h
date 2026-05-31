@@ -1,0 +1,1 @@
+struct c { float r; float i; }; void test(struct c *x);

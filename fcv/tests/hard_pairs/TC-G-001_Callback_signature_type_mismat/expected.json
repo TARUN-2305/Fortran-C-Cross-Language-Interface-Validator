@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-G-001] interface.f90:7 <-> header.h:2  callback signature\n  CALLBACK_RETURN_TYPE: Fortran abstract interface declares REAL(c_float)\n  return (4 bytes in XMM0[31:0]). C typedef expects 'double' return\n  (8 bytes in XMM0[63:0]). Caller reads 8 bytes; high 32 bits are garbage.\n\nERROR   [TC-G-001] interface.f90:8 <-> header.h:2  callback param[0]\n  CALLBACK_PARAM_TYPE: Fortran abstract interface param 'x' is REAL(c_float).\n  C typedef passes 'double x'. Fortran callback reads 4 bytes; receives 8.\n  Argument is 4 bytes of the double value \u2014 always wrong."
+  }
+]

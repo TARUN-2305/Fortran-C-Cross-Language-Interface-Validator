@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-A-001] interface.f90:2 <-> header.h:2\n  HIDDEN_STRLEN_ARG: CHARACTER dummy argument 'transa' (no BIND(C)) injects\n  hidden size_t at stack position 14. C prototype declares 13 parameters.\n  Stack corruption likely on GCC >= 8 with -O2.\n\nERROR   [TC-A-001] interface.f90:2 <-> header.h:2\n  HIDDEN_STRLEN_ARG: CHARACTER dummy argument 'transb' injects hidden\n  size_t at stack position 15. Two hidden args total.\n\nNOTE: Workaround: compile Fortran with -fno-optimize-sibling-calls.\n      Fix: use BIND(C) with CHARACTER(KIND=C_CHAR) dummy arguments."
+  }
+]

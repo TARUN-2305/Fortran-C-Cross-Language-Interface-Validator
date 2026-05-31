@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-J-001] interface.f90:5 <-> header.h:2  param[0] 'm'\n  ILP64_MISMATCH: Fortran INTEGER(c_int64_t) = 8 bytes.\n  C 'int' = 4 bytes. For m \u2264 2^31-1, upper 32 bits are zero (correct).\n  For m > 2^31-1, Fortran passes 8 bytes; C reads 4 bytes (overflow truncated).\n  Silent wrong result or out-of-bounds access for large matrices.\n\nERROR   [TC-J-001] (same for n, lda, every element of ipiv, info)\n\nNOTE: Use int64_t or MKL_INT64 in C for ILP64-compiled Fortran libraries.\n      Symbol suffix convention: _ilp64 or _64 indicates ILP64 variant."
+  }
+]

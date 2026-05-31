@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-A-002] interface.f90:3 <-> header.h:2\n  CHARACTER_RETURN: Fortran function returns CHARACTER(LEN=32). ABI\n  inserts two hidden leading args: (char* buf, size_t len). C prototype\n  declares return type 'char*' and 1 parameter. Argument list is completely\n  incompatible. Undefined behaviour on every platform."
+  }
+]

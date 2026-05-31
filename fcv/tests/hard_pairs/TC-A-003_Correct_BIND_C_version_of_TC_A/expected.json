@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "NONE",
+    "raw_text": "OK  [TC-A-003] dgemm_wrap: All 13 parameters match. No hidden args."
+  }
+]

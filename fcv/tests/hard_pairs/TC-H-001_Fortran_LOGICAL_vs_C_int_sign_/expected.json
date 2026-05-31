@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-H-001] interface.f90:5 <-> header.h:2  param[0] 'flag'\n  LOGICAL_ENCODING: Fortran default LOGICAL (not LOGICAL(c_bool)) has\n  compiler-defined encoding. GFortran: .TRUE.=-1 (0xFFFFFFFF).\n  ifort: .TRUE.=1. C 'int': 1=true. GFortran value fails '== 1' test.\n  Use LOGICAL(c_bool) (Fortran) and _Bool (C) for guaranteed encoding.\n\nNOTE: LOGICAL(c_bool) guarantees .TRUE.=1, .FALSE.=0, matching C99 _Bool."
+  }
+]

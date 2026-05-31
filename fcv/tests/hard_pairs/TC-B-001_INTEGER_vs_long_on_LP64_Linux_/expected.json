@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-B-001] interface.f90:4 <-> header.h:2  param[0] 'n'\n  TYPE_WIDTH: Fortran INTEGER(c_int) = 4 bytes. C 'long' = 8 bytes (LP64).\n  Caller places 8 bytes; callee reads 4 bytes. High 32 bits are garbage.\n\nERROR   [TC-B-001] interface.f90:4 <-> header.h:2  param[1] 'nnz'\n  TYPE_WIDTH: Same mismatch. Array bounds corrupted for nnz > 2^31-1.\n\nERROR   [TC-B-001] interface.f90:4 <-> header.h:2  param[3] 'col_idx'\n  TYPE_WIDTH: Array element INTEGER(c_int) vs C 'long'. Every array\n  element is 4 vs 8 bytes. Complete memory layout mismatch.\n\nNOTE: Use c_long (Fortran) / int (C, explicitly) or c_int64_t / int64_t\n      for unambiguous 64-bit indices."
+  }
+]

@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-G-002] interface.f90:5 <-> header.h:3  param[0] 'handler'\n  FUNPTR_VS_PTR: C parameter is a function pointer (event_handler).\n  Fortran declares TYPE(c_ptr) (data pointer). Fortran 2003 \u00a715.3.7:\n  c_ptr and c_funptr are distinct types. On architectures where code and\n  data pointers differ in size (e.g., DOS far model, some DSPs), this\n  causes immediate crash. On x86-64 sizes coincide but it is still\n  non-conforming and may fail with aggressive optimisation.\n\nNOTE: Use TYPE(c_funptr) for all function pointer interop."
+  }
+]

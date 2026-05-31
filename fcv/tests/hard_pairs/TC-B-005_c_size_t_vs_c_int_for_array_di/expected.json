@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-B-005] interface.f90:7 <-> header.h:2  param[2] 'count'\n  TYPE_WIDTH: Fortran INTEGER(c_int) = 4 bytes. C 'size_t' = 8 bytes (LP64).\n  For count > 2,147,483,647 the upper 32 bits are garbage.\n  Fix: INTEGER(c_size_t) in Fortran."
+  }
+]

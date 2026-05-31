@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-K-002] interface.f90:5 <-> header.h:2  param[1] 'n'\n  VALUE_MISMATCH: Fortran 'n' has VALUE attribute (pass by value, int in RDI).\n  C prototype passes 'int *n' (pointer to int, 8 bytes in RSI).\n  Fortran reads 8 bytes (pointer address) as a 4-byte integer. Garbage value.\n\nWARNING [TC-K-002] header.h:2\n  UNDERSCORE_NAME: Symbol 'solver_' has trailing underscore. This may be\n  an old-style Fortran mangled name. Verify this is an intentional\n  BIND(C, name=\"solver_\") interface and not a legacy non-BIND interface."
+  }
+]

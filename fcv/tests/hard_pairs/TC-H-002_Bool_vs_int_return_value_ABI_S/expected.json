@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "WARNING",
+    "raw_text": "WARNING [TC-H-002] interface.f90:2 <-> header.h:2\n  BOOL_VS_INT_RETURN: Fortran returns LOGICAL(c_bool) (_Bool: 1 byte, 0 or 1).\n  C prototype declares int return (4 bytes). On x86-64 SysV ABI both use\n  RAX, but _Bool zero-extends only the low byte; int uses all 32 bits.\n  High bytes of RAX may be non-zero garbage if return path is unusual.\n  Use '_Bool' in C for exact semantic match."
+  }
+]

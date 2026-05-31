@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-E-001] module grid_types <-> header.h  struct grid_params\n  STRUCT_LAYOUT: Field 'tolerance' offset mismatch.\n    Fortran BIND(C): offset=8 (natural alignment, 7 bytes padding after 'method')\n    C #pragma pack(1): offset=1 (packed, no padding)\n  Total struct size: Fortran=32 bytes, C=21 bytes.\n  Every field after 'method' reads from wrong address. Silent corruption.\n\nWARNING [TC-E-001] header.h:2\n  PACKED_STRUCT: #pragma pack(1) detected on interop struct. Packed C structs\n  are rarely compatible with Fortran BIND(C) natural alignment."
+  }
+]

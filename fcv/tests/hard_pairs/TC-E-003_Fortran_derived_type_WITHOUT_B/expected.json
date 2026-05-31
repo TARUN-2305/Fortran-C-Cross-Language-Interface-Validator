@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-E-003] interface.f90:9 <-> header.h:7  param[0] 'cfg'\n  NON_INTEROPERABLE_TYPE: Fortran derived type 'mesh_config' lacks BIND(C)\n  attribute. Layout is implementation-defined. Cannot compare with C struct.\n  Fortran 2003 \u00a715.3.5: non-BIND(C) derived types are not interoperable.\n\nERROR   [TC-E-003] interface.f90:3\n  LOGICAL_IN_NON_BIND_TYPE: Field 'periodic' has LOGICAL type. In a\n  non-BIND(C) type, LOGICAL has compiler-defined width and encoding.\n  GFortran uses 4 bytes; may differ from C 'int' or '_Bool'."
+  }
+]

@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-K-003] interface.f90:7 <-> header.h:2\n  PARAM_ORDER: param[4]: Fortran='src_ld'(INTEGER(c_int)), C='dst_ld'(int)\n  PARAM_ORDER: param[5]: Fortran='dst_ld'(INTEGER(c_int)), C='src_ld'(int)\n  Types are compatible but parameters are swapped at positions 4 and 5.\n  All matrix rows will be copied with wrong strides. Silent wrong results.\n\nNOTE: Validator matched by position, not by name. Names are informational only."
+  }
+]

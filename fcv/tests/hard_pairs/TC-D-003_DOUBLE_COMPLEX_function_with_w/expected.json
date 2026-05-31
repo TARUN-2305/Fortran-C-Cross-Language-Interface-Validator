@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-D-003] interface.f90:2 <-> header.h:3\n  COMPLEX_SRET_LEGACY: On 32-bit SPARC, DOUBLE COMPLEX function return\n  requires hidden leading argument (dcomplex *result). C prototype omits\n  this argument. On 32-bit: all arguments shift by one; n reads x, x\n  reads incx, etc. Total argument corruption.\n\nNOTE: This interface lacks BIND(C). Use BIND(C) with COMPLEX(c_double_complex)\n      to get defined, portable behaviour."
+  }
+]

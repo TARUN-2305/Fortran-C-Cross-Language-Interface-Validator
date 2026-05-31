@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "WARNING",
+    "raw_text": "WARNING [TC-J-002] interface.f90:2 <-> header.h:2\n  WINDOWS_CALLING_CONV: On 32-bit Windows, Fortran DLLs may use __stdcall\n  convention; C defaults to __cdecl. Stack pointer will be corrupted after\n  each call if conventions differ. BIND(C) mandates C calling convention\n  (__cdecl) but verify your Fortran compiler honours this on Win32.\n  On 64-bit Windows (x64): only one calling convention; no issue."
+  }
+]

@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "ERROR",
+    "raw_text": "ERROR   [TC-K-001] header.h:2 typedef resolved: lapack_int = int (4 bytes).\n  Fortran INTEGER(c_int64_t) = 8 bytes.\n  Mismatch on: n, nrhs, lda, ldb, info (all 5 integer parameters).\n\nNOTE: Rebuild C header with -DLAPACK_ILP64 to match Fortran ILP64 interface,\n      or change Fortran to INTEGER(c_int)."
+  }
+]

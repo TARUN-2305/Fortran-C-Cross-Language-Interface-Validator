@@ -1,0 +1,6 @@
+[
+  {
+    "severity": "WARNING",
+    "raw_text": "WARNING [TC-I-001] interface.f90:2 <-> header.h:2\n  CHAR_NUL_TERMINATION: Fortran CHARACTER(kind=c_char) array does not\n  guarantee NUL termination. C caller using '%s' or strlen() will read\n  past the end of valid data until a NUL byte is found elsewhere in memory.\n  Fortran strings are blank-padded, not NUL-terminated.\n\nNOTE: Append C_NULL_CHAR to buffer in Fortran, or document that C caller\n      must use the maxlen parameter as a bounded length."
+  }
+]
