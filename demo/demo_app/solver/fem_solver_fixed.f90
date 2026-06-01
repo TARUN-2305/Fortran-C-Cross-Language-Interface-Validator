@@ -9,10 +9,10 @@ subroutine compute_displacement(material, nx, ny, load, result) bind(c, name="co
 
   ! Dummy computation: simple fake FEM logic
   if (material(1) == 'S' .or. material(1) == 's') then
-     result = load / (210.0 * 0.001)
+     result = load / (210.0 * 1000.0)
   else if (material(1) == 'A' .or. material(1) == 'a') then
-     result = load / (70.0 * 0.001)
+     result = load / (70.0 * 1000.0)
   else
-     result = load / (100.0 * 0.001)
+     result = load / (100.0 * 1000.0)
   end if
 end subroutine compute_displacement

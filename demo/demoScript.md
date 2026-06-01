@@ -155,7 +155,7 @@
 1. Go back to the browser window.
 2. Toggle the **Solver Interoperability Build** dropdown to: `Fixed BIND(C) ABI (Compliant)`.
 3. Submit the FEM form again.
-4. Highlight the **green success alert** and the clean output value: `23.8095 m`.
+4. Highlight the **green success alert** and the clean output value: `0.0238 m`.
 
 ---
 
@@ -164,7 +164,7 @@
 > 
 > We submit the exact same engineering mesh and load vectors.
 > 
-> The stack aligns perfectly. The registers load clean. We immediately receive our correct double-precision displacement result: **23.81 meters**, with absolute system integrity."
+> The stack aligns perfectly. The registers load clean. We immediately receive our correct double-precision displacement result: **0.0238 meters** (23.8 millimeters), with absolute system integrity."
 
 ---
 

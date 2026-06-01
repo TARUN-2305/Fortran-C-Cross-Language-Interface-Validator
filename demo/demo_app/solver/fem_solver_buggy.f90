@@ -8,10 +8,10 @@ subroutine compute_displacement(material, nx, ny, load, result)
 
   ! Dummy computation: simple fake FEM logic
   if (material == "Steel") then
-     result = load / (210.0 * 0.001)
+     result = load / (210.0 * 1000.0)
   else if (material == "Aluminum") then
-     result = load / (70.0 * 0.001)
+     result = load / (70.0 * 1000.0)
   else
-     result = load / (100.0 * 0.001)
+     result = load / (100.0 * 1000.0)
   end if
 end subroutine compute_displacement

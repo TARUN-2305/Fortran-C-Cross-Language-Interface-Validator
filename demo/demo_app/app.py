@@ -76,9 +76,9 @@ def index():
                     result = 9234872139823.15
                     error_msg = "CRASH / STACK CORRUPTION DETECTED: Fortran legacy ABI read invalid registers. Result is corrupted."
                 else:
-                    # Correct math computation (displacement = load / (elastic_modulus * 0.001))
+                    # Correct math computation (displacement = load / (elastic_modulus * 1000.0))
                     elastic_modulus = 210.0 if material == "Steel" else 70.0
-                    result = round(load / (elastic_modulus * 0.001), 4)
+                    result = round(load / (elastic_modulus * 1000.0), 4)
                     success = True
                 
     return render_template("index.html", 

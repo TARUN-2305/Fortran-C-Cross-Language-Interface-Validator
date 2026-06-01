@@ -19,7 +19,7 @@ Scientific programming relies heavily on mixing language front-ends. In this dem
 2. The performant computation engine is compiled in **Fortran** (`fem_solver.f90`).
 3. Both compilers compile successfully. The linker links the symbols cleanly.
 
-However, the user submits the structural load inputs and the calculation returns a massive, corrupted displacement value: `9234872139823.15 m` instead of `23.81 m`, accompanied by an immediate call-stack overflow crash. 
+However, the user submits the structural load inputs and the calculation returns a massive, corrupted displacement value: `9234872139823.15 m` instead of `0.0238 m` (23.8 mm), accompanied by an immediate call-stack overflow crash. 
 
 ### Why Did This Happen?
 At the compiler level, both languages are compiled completely independently. Because the developer omitted the modern Fortran `BIND(C)` attribute:
