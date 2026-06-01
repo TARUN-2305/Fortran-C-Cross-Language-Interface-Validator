@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HPC Structural FEM Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --primary: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.3);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.3);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.3);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #f8fafc 30%, #38bdf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 24px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(56, 189, 248, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(56, 189, 248, 0.05);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-control {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            padding: 12px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        select.form-control {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+        }
+
+        .btn {
+            width: 100%;
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(2, 132, 199, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-danger {
+            background: var(--danger-glow);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .badge-success {
+            background: var(--success-glow);
+            color: #a7f3d0;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .result-box {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 250px;
+            text-align: center;
+        }
+
+        .result-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin: 15px 0;
+            letter-spacing: -0.02em;
+        }
+
+        .value-garbled {
+            color: #fda4af;
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+            animation: glitch 1.5s infinite alternate;
+        }
+
+        .value-clean {
+            color: #6ee7b7;
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            line-height: 1.5;
+        }
+
+        .alert-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #fca5a5;
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #a7f3d0;
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        footer {
+            margin-top: 40px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        @keyframes glitch {
+            0% { transform: skew(0deg); }
+            5% { transform: skew(2deg); }
+            10% { transform: skew(-2deg); }
+            15% { transform: skew(0deg); }
+            100% { transform: skew(0deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>HPC Structural FEM Solver</h1>
+            <p>Interactive Language Boundary ABI Interoperability Demonstration</p>
+        </header>
+
+        {% if error_msg %}
+            <div class="alert alert-danger">
+                <strong>⚠️ Boundary Mismatch / ABI Crash</strong><br>
+                {{ error_msg }}
+            </div>
+        {% elif success %}
+            <div class="alert alert-success">
+                <strong>✅ Compliant ABI Bound</strong><br>
+                Fortran and C libraries successfully communicated with identical byte-offsets and natural alignments.
+            </div>
+        {% endif %}
+
+        <div class="grid">
+            <!-- Input Form Card -->
+            <div class="card">
+                <form method="POST">
+                    <div class="form-group">
+                        <label for="solver_mode">Solver Interoperability Build</label>
+                        <select name="solver_mode" id="solver_mode" class="form-control">
+                            <option value="buggy" {% if solver_mode == 'buggy' %}selected{% endif %}>Buggy legacy ABI (No BIND(C))</option>
+                            <option value="fixed" {% if solver_mode == 'fixed' %}selected{% endif %}>Fixed BIND(C) ABI (Compliant)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="material">Material Selection</label>
+                        <select name="material" id="material" class="form-control">
+                            <option value="Steel" {% if material == 'Steel' %}selected{% endif %}>Steel</option>
+                            <option value="Aluminum" {% if material == 'Aluminum' %}selected{% endif %}>Aluminum</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="nx">Mesh Grid nx (Subdivisions)</label>
+                        <input type="number" name="nx" id="nx" class="form-control" value="{{ nx }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ny">Mesh Grid ny (Subdivisions)</label>
+                        <input type="number" name="ny" id="ny" class="form-control" value="{{ ny }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="load">Boundary Load Vector (N)</label>
+                        <input type="number" step="any" name="load" id="load" class="form-control" value="{{ load }}">
+                    </div>
+
+                    <button type="submit" class="btn">Execute FEM Analysis</button>
+                </form>
+            </div>
+
+            <!-- Output Display Card -->
+            <div class="card result-box">
+                <h3 style="color: var(--text-muted); font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em;">FEM Output displacement</h3>
+                
+                {% if result is not none %}
+                    {% if solver_mode == 'buggy' %}
+                        <div class="result-value value-garbled">{{ result }} m</div>
+                        <span class="badge badge-danger">Memory Corrupted</span>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 15px; line-height: 1.4;">
+                            Legacy Fortran dummy arguments expect standard integers but C sent long integers, shifting stack register bytes out of scope.
+                        </p>
+                    {% else %}
+                        <div class="result-value value-clean">{{ result }} m</div>
+                        <span class="badge badge-success">Valid Computation</span>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 15px; line-height: 1.4;">
+                            Interoperable double-precision displacement result returned directly from the BIND(C) shared library.
+                        </p>
+                    {% endif %}
+                {% else %}
+                    <div class="result-value" style="color: var(--text-muted);">0.0000 m</div>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">Submit the form to invoke the Fortran engine.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <footer>
+            Compiler Design Course Project • Department of CSE, RVCE
+        </footer>
+    </div>
+</body>
+</html>

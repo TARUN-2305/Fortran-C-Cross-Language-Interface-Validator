@@ -141,6 +141,7 @@ class FortranParser:
                     is_function=is_function
                 )
                 current_proc.fortran_name = proc_name # Save internal name for fallback parsing
+                current_proc.is_bind_c = (m_bind is not None)
                 
                 if args_str:
                     current_args_order = [a.strip() for a in args_str.split(",") if a.strip()]
@@ -155,9 +156,11 @@ class FortranParser:
                 # integer(c_int), intent(in) :: n
                 # character(kind=c_char), dimension(*) :: str
                 
-                # Check for hidden strlen
-                if "character" in line and "(*)" in line and not "bind(c" in line:
-                    current_proc.has_hidden_strlen = True
+                # Check for hidden strlen (only if assumed-length specifier is in the type spec)
+                if "character" in line:
+                    left_spec = line.split("::", 1)[0] if "::" in line else line
+                    if "(*)" in left_spec or "len=*" in left_spec:
+                        current_proc.has_hidden_strlen = True
                 
                 if "::" in line:
                     left, right = line.split("::", 1)
