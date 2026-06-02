@@ -12,6 +12,21 @@ Developed as part of the Compiler Design Course Project (Evaluation by HPE Team)
 
 ---
 
+## 🎬 Video Demonstration Showcase
+
+Inside this repository, we have provided a complete keynote-style video walkthrough demonstrating **FCValidator** in action against a real-world scientific HPC simulation:
+* **Video File Location:** [demo/Demo.mp4](file:///c:/Users/tarun/Desktop/USEFUL/Projects/Compiler_Design_Docs_Backup/Compiler%20Design%20EL/fcvalidator/demo/Demo.mp4)
+
+> [!IMPORTANT]
+> **Disclaimer & Evaluation Scope:**
+> The video demonstrates how FCValidator is integrated into a professional developer workflow using a custom **HPC Structural FEM Solver Web Dashboard** (built in Flask, dynamically invoking Fortran shared libraries). 
+> 
+> Please note that the Finite Element Method (FEM) web application is a simulated dashboard. The physical plate stress calculations, boundary loads, and material displacement stubs are simplified simulations constructed to clearly showcase tool behavior. However, the command-line static validation (`fcv validate`), AST compiler-level parsing, type-width matching, and terminal reports are **100% authentic, accurate, and run in real-time**.
+
+To learn more about the demo application and how to run it locally on your system, please refer to the specialized **[demo/README.md](file:///c:/Users/tarun/Desktop/USEFUL/Projects/Compiler_Design_Docs_Backup/Compiler%20Design%20EL/fcvalidator/demo/README.md)**.
+
+---
+
 ## 🛑 The Problem: The "Silent Data Corruption" Crisis in HPC
 When writing high-performance computing (HPC) software (like LAPACK, BLAS, or modern scientific simulations), developers frequently mix Fortran for numerical heavy-lifting with C/C++ for networking, memory management, and system-level operations. 
 
