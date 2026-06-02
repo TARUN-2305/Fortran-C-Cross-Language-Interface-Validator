@@ -1,134 +1,137 @@
-# IMPLEMENTATION.md — LLVM Clang AST Parsing & Fortran Heuristics
+# IMPLEMENTATION.md — FEM Solver Interoperability and ABI Details
 
-This document describes the technical implementation details of **FCValidator**, specifically detailing the compiler frontends, AST traversal, parser pipelines, and validation logic.
+This document explains the technical implementation details of the interface boundaries between our web dashboard and the Fortran numerical engine, highlighting the compiler-level binary traps and how they are identified.
 
 ---
 
-## 1. C Parser: Clang Compiler AST Integration (`libclang`)
+## 👥 Student Development Team & Credits
+Developed as part of the Compiler Design Course Project:
+* **Tanmay Dev D** (1RV23CS269) — CS Dept, RVCE  
+* **Tarun.R** (1RV23CS271) — CS Dept, RVCE  
+* **Tejasvi Vasant Hegde** (1RV23CS272) — CS Dept, RVCE  
 
-The C Parser (`fcv/parsers/c_parser.py`) integrates directly with LLVM's compiler frontend via the official **Clang Python Bindings (`libclang`)**. This enables production-grade C validation, supporting all compiler macros, system headers, and typedef chains.
+---
 
-### Compilation Database & AST Extraction
-Instead of reading code as raw text, Clang compiles the header into a Translation Unit (TU) AST. The C parser performs the following:
+## 1. The Legacy Name-Mangling Underscore (`compute_displacement_`)
 
-```python
-import clang.cindex as cl
+In high-performance computing, when a Fortran subroutine is compiled without standard interoperability keywords, the compiler mangles the subroutine's symbol.
+Specifically, **gfortran** converts all subroutine characters to lowercase and appends a trailing underscore:
 
-# Initialize Clang Index
-index = cl.Index.create()
-
-# Compile the target header file to an AST
-# Target standard C11 and define necessary standard directives
-tu = index.parse(
-    filepath,
-    args=['-x', 'c', '-std=c11', '-D__STDC_LIMIT_MACROS', '-D__STDC_CONSTANT_MACROS']
-)
+```fortran
+! Inside buggy/fem_solver.f90
+SUBROUTINE COMPUTE_DISPLACEMENT(material, nx, ny, load, displacement)
 ```
+Translates to the exported binary symbol:
+$$\text{compute\_displacement\_}$$
 
-### Traversing AST Nodes (Cursors)
-The parser performs a depth-first pre-order traversal of the compiled AST, selecting specific node cursors to reconstruct function and struct signatures:
-
-- **`CursorKind.FUNCTION_DECL`**: Marks the declaration of a function. The parser extracts:
-  - Function name (e.g., `dgemm_`).
-  - Return type.
-  - Full ordered argument list.
-  - Source location (file, line number).
-- **`CursorKind.PARM_DECL`**: Represents an individual function parameter.
-- **`CursorKind.STRUCT_DECL`**: Marks structural record declarations.
-- **`CursorKind.FIELD_DECL`**: Identifies struct member declarations, enabling byte-offset and order alignment checks.
-
-### Typedef Resolution Chain
-A critical advantage of using `libclang` is the automatic traversal of typedef chains. The tool resolves deep definitions like:
-`lapack_int` ⟶ `int32_t` ⟶ `int` ⟶ `4 bytes`
-This is achieved by accessing Clang's canonical type representation:
-```python
-# Automatically resolves typedefs to underlying canonical types
-canonical_type = cursor.type.get_canonical()
-```
-
----
-
-## 2. Fortran Parser: RegEx + Logical Line Reconstruction
-
-Because Fortran parser tools (like Flang AST parsers) require massive toolchain installations, the Fortran Parser (`fcv/parsers/fortran_parser.py`) implements a high-performance **logical-line RegEx parser** designed to process standard Fortran `BIND(C)` interface blocks with near 100% accuracy.
-
-### Parser Stages:
-1. **Case Normalization**: Downcases all source text since Fortran is case-insensitive (excluding character string literals).
-2. **Comment Stripping**: Removes all single-line comments prefixed by `!` (while preserving literal quotes).
-3. **Continuation Joining**: Scans for the `&` line-continuation symbol and joins multi-line declarations into continuous single logical lines.
-4. **Interface Extraction**: Extracts blocks starting with `interface` and ending with `end interface`.
-5. **Procedure Matching**: Scans for `subroutine` or `function` declarations containing `bind(c)`.
-6. **Type and Attribute Resolution**: Scans each variable declaration inside the block for attributes:
-   - `value` attribute $\longrightarrow$ Pass-by-value.
-   - `intent(in/out/inout)` $\longrightarrow$ Parameter flow direction.
-   - `dimension` or arrays (`(..)` or `(*)`) $\longrightarrow$ Array pointers.
-   - `iso_c_binding` constants (e.g., `c_int`, `c_double`) $\longrightarrow$ Standard ISO-C map.
-
----
-
-## 3. Mismatch Detection Algorithms
-
-The **Comparator Engine** (`fcv/engine/comparator.py`) and the **ABI Analysis Engine** (`fcv/engine/abi.py`) compare the parsed IR structures to isolate incompatibilities.
-
-### Case A: Hidden String Length (ABI Danger)
-In standard Fortran (non-`BIND(C)`), passing a `CHARACTER(LEN=*)` variable causes the compiler to implicitly append an extra integer argument representing the string's length at the end of the argument list. The C program is unaware of this, causing a call-stack mismatch and application crash.
-- **Detection**:
-  ```python
-  if is_fortran_character_string and not is_bind_c:
-      # Append hidden parameters to the IR proc list and trigger ERROR
-  ```
-
-### Case B: Scalar Width & Type Mismatches
-Verifies that parameter widths match precisely.
-- **Detection**:
-  ```python
-  if f_param.type.bytes != c_param.type.bytes:
-      self._add_mismatch(
-          category="TYPE_WIDTH",
-          severity="ERROR",
-          message=f"Width mismatch: Fortran {f_param.name} ({f_param.type.bytes}B) vs C {c_param.name} ({c_param.type.bytes}B)"
-      )
-  ```
-
-### Case C: Value vs Reference Attributes
-For standard scalar parameters, C passes variables by value by default, whereas Fortran passes by reference (pointer) unless the `VALUE` attribute is explicitly specified.
-
----
-
-## 4. The Assumed-Shape Array Descriptor Trap (`CFI_cdesc_t`)
-
-When a Fortran interface defines an assumed-shape array (e.g., `real :: x(:)`), the compiler does not pass a raw address. Instead, it passes a descriptor structure defined by the modern ISO C Interoperability standard (`ISO_Fortran_binding.h`):
-
+For a C wrapper or dynamically loaded FFI engine (like `ctypes`) to call this, the programmer must explicitly declare and load the mangled symbol name:
 ```c
-/* ISO_Fortran_binding.h equivalent representation */
-typedef struct CFI_cdesc_t {
-    void *base_addr;           // Raw pointer to array start
-    size_t elem_len;           // Size of an element in bytes
-    int version;               // CFI_VERSION
-    CFI_attribute_t attribute; // Assumed, allocatable, or pointer
-    CFI_type_t type;           // Element type code
-    CFI_rank_t rank;           // Dimensions
-    CFI_dim_t dim[];           // Bounds info (rank elements)
-} CFI_cdesc_t;
+// Inside buggy/fem_wrapper.h
+void compute_displacement_(char *material, long *nx, long *ny, double *load, double *displacement);
 ```
 
-A C function expecting a simple `double*` will read this structure as raw float data, causing a segmentation fault.
+### The Security & Maintenance Risk:
+If the Fortran library is recompiled on a different compiler (e.g., Intel `ifx` or Cray `ftn` under specialized settings) that does not append a single underscore, or appends two underscores, the C code fails to link. 
+Modern **BIND(C)** completely eliminates this risk by instructing the compiler to preserve the exact character case and suppress any mangling:
+```fortran
+! Inside fixed/fem_solver.f90
+subroutine compute_displacement(material, nx, ny, load, displacement) bind(c, name="compute_displacement")
+```
+Which binds exactly to the unmangled C symbol name:
+$$\text{compute\_displacement}$$
 
-FCValidator detects this in the **Comparator Engine** by analyzing the rank specification:
-```python
-if isinstance(ft, ArrayType) and ft.is_assumed_shape:
-    if not isinstance(ct, StructType) or "CFI_cdesc_t" not in ct.name:
-        self._add_mismatch(
-            category="ARRAY_DESCRIPTOR",
-            severity="ERROR",
-            message="Fortran assumed-shape passes CFI_cdesc_t descriptor. C header must receive CFI_cdesc_t*."
-        )
+---
+
+## 2. The Hidden String Length Stack Shift
+
+When passing a `CHARACTER(len=*)` variable to a legacy Fortran subroutine, the compiler must track the string's length at runtime. Because legacy Fortran does not use NUL-terminated strings (unlike C), the compiler silently appends a hidden `size_t` (8-byte on 64-bit platforms) argument to the end of the argument list:
+
+### ⚠️ Buggy Memory Frame Call Stack
+When the C wrapper invokes `compute_displacement_`, it expects to push exactly **5 arguments** to the CPU registers:
+
+```
+Registers (AMD64 ABI / Windows x64 ABI):
+1. RCX: Pointer to material ("steel")
+2. RDX: Pointer to nx (100)
+3. R8:  Pointer to ny (100)
+4. R9:  Pointer to load (5000.0)
+5. [Stack Frame]: Pointer to displacement (output)
+```
+
+However, the legacy Fortran compiler compiles `compute_displacement_` expecting **6 arguments**:
+```
+Expected Arguments:
+1. RCX: Pointer to material
+2. RDX: Pointer to nx
+3. R8:  Pointer to ny
+4. R9:  Pointer to load
+5. [Stack Frame]: Pointer to displacement
+6. [Stack Frame]: Hidden size_t length of material (implicitly appended!)
+```
+
+Because C is unaware of the 6th parameter, it does not push the string length. The Fortran engine, attempting to read the 6th argument, reads random stack garbage. Under standard optimization flags, this register mismatch corrupts the stack frame pointer and immediately triggers a segmentation fault or a memory read overflow.
+
+### Modern BIND(C) Resolution:
+Under `BIND(C)`, passing an array of `character(kind=c_char)` prevents the compiler from appending the hidden string length, converting it to a standard, interoperable C-style string address pointer:
+```fortran
+character(kind=c_char), dimension(*), intent(in) :: material
 ```
 
 ---
 
-## 5. Case D: Complex Return Call-Stack ABI
-Functions returning `COMPLEX` values are returned differently depending on compiler ABI:
-- **Direct Return**: Returned via standard registers (e.g. `xmm0/xmm1` on x86_64).
-- **Structure Return (`sret`)**: The compiler silently inserts an implicit first parameter (the `sret` pointer) representing the return address of the structure, shifting all actual parameter positions by one.
-FCValidator flags complex returns lacking the `BIND(C)` attribute to protect developers from call-stack displacement.
+## 3. LP64 Pointer Size Discrepancies (4-Byte vs 8-Byte Shifts)
+
+On a modern 64-bit Linux HPC system (`LP64` data model), standard pointers are **8 bytes**, and a C `long` variable is **8 bytes**. However, a default Fortran `INTEGER` is **4 bytes**.
+
+In our buggy wrapper, the grid parameters `nx` and `ny` are declared as:
+```c
+// C Header
+long *nx, long *ny; // 8-byte pointer to 8-byte integers
+```
+But in the legacy Fortran subroutine, they are processed as:
+```fortran
+! Fortran Core
+INTEGER :: nx, ny   // 4-byte scalar integers passed by reference
+```
+
+```
+C side:      [ 8 bytes of long (value: 100) ]  <-- Address passed
+Fortran:     [ 4 bytes read ]  [ 4 bytes offset ]
+```
+
+When Fortran attempts to dereference the 8-byte pointer passed by C, it reads only the first **4 bytes** from the address. If the value fits in 4 bytes and is little-endian, it reads `100` correctly. However, when returning or accessing adjacent stack variables, the 8-byte pointer boundary causes a 32-bit shift in memory layout. This shift displaces the pointer address of the subsequent argument `load`, causing the solver to read memory noise and return the corrupted displacement: `9234872139823.15 m`.
+
+### BIND(C) Resolution:
+The fixed interface maps the scalars explicitly using the `ISO_C_BINDING` parameters, passed by value to fit directly into CPU registers:
+```fortran
+integer(c_int), value :: nx, ny
+```
+
+---
+
+## 4. Dynamic Loading and Ctypes FFI Mapping in `app.py`
+
+The Flask application (`demo_app/app.py`) loads these compiled dynamic libraries using Python's standard `ctypes` foreign function interface.
+
+### The Dynamic Symbol Loading:
+```python
+# app.py parameter binding snippet
+import ctypes
+
+# 1. Loading the DLL
+lib = ctypes.CDLL("./demo_app/libfem_solver_fixed.dll")
+
+# 2. Binding parameter types for the fixed BIND(C) interface
+lib.compute_displacement.argtypes = [
+    ctypes.c_char_p,                 # const char* material
+    ctypes.c_int,                    # int nx (passed by value)
+    ctypes.c_int,                    # int ny (passed by value)
+    ctypes.c_double,                 # double load (passed by value)
+    ctypes.POINTER(ctypes.c_double)  # double* displacement (output)
+]
+```
+
+By explicitly mapping parameter types under the fixed mode, Python passes the arguments in standard register layouts:
+- `material` is passed as a NUL-terminated C string (`c_char_p`).
+- `nx` and `ny` are passed as 4-byte standard integers by value (`c_int`), matching the `integer(c_int), value` definition in Fortran.
+- `displacement` is passed as an output double-precision pointer, retrieving the final calculation cleanly.

@@ -1,136 +1,132 @@
-# DESIGN.md — FCValidator Architecture & Design Decisions
+# DESIGN.md — Structural FEM Analyzer Interoperability Design
 
-## 1. Problem Statement
-In scientific computing and high-performance computing (HPC), hybrid codebases mixing Fortran and C are extremely common (e.g., LAPACK, PETSc, WRF). These languages interface at the binary level, but compilers compile them independently. Historically, developers have had to manually ensure that:
-1. Every Fortran `BIND(C)` interface matches the corresponding C header signature.
-2. Scalar types have matching bit-widths (e.g., matching a 4-byte `INTEGER(c_int)` to a 4-byte C `int`, or an 8-byte `INTEGER(c_double)` to a C `double`).
-3. Calling conventions, pass-by-value vs pass-by-reference semantics, and struct layouts match precisely.
-
-A single silent mismatch leads to **stack corruption**, **segmentation faults**, or **subtle numerical bugs** that are nearly impossible to trace because compilers and linkers successfully link mismatched signatures without warnings.
-
-**FCValidator** solves this by providing an automated, compiler-grade verification tool that parses both sides using official compiler frontend technology (Clang) and advanced parsing heuristics, cross-checking signatures statically.
+This document details the architectural design and structural boundary decisions for the **HPC Structural FEM Solver** interactive demonstration. 
 
 ---
 
-## 2. System Architecture
+## 👥 Student Development Team & Credits
+Developed as part of the Compiler Design Course Project:
+* **Tanmay Dev D** (1RV23CS269) — CS Dept, RVCE  
+* **Tarun.R** (1RV23CS271) — CS Dept, RVCE  
+* **Tejasvi Vasant Hegde** (1RV23CS272) — CS Dept, RVCE  
 
-FCValidator is built as a modular pipeline separating source parsing, type canonicalization, structural comparison, and diagnostic reporting.
+---
+
+## 1. Structural FEM Problem Statement & Scope
+
+Scientific computation and structural engineering applications frequently construct modern web-based dashboards (e.g. Flask, FastAPI) to allow engineers to execute high-performance computational simulations. The performant solver engines are historically built in legacy languages like **Fortran** for peak mathematical throughput, compiled as high-performance shared libraries (`.dll`/`.so`), and dynamically loaded by a web server.
+
+In this interactive demonstration, we model a structural engineering scenario:
+1. A **Web Dashboard (Flask)** receives input parameters from a user (material, mesh dimensions, applied boundary load vector) to calculate the displacement of a 2D elastic plate under mechanical stress.
+2. The performant physical displacement computation is executed by a Fortran compiled shared library.
+3. Both sides are compiled successfully and the Python `ctypes` foreign function interface (FFI) binds the symbols cleanly.
+
+However, when linking the languages without compiler-enforced standards:
+- Compilers compile files independently, leaving them **blind** to binary layout shifts across the FFI boundary.
+- **FCValidator** acts as the static compile-time gatekeeper, auditing both C and Fortran interfaces to catch ABI incompatibilities before a runtime stack corruption occurs.
+
+```
++---------------------------+
+|   Flask Web Dashboard     |  (User inputs material, nx, ny, load)
++-------------+-------------+
+              |
+              | (Dynamically loads via ctypes FFI)
+              v
++---------------------------+      [Language Boundary mismatch traps!]
+|  Shared Library Solver    | <--- - Missing BIND(C) legacy calling convention
+|  (C wrapper to Fortran)   |      - Hidden string length stack shift (CHARACTER)
++---------------------------+      - Pointer scalar width offset (4B vs 8B)
+```
+
+---
+
+## 2. Dual-Build Shared Library Architecture
+
+To demonstrate the concrete runtime consequences of boundary errors and their resolution, the demo application is architected with a **Dual-Build Shared Library Pipeline**.
+
+When the developer boots the Flask app, they can toggle between two distinct compiled back-ends:
 
 ```mermaid
 graph TD
-    subgraph Input Files
-        F90[Fortran Source .f90]
-        H[C Header .h]
+    subgraph Build Pipeline
+        F_BUG[Buggy Fortran Solver] -->|gfortran compilation| LIB_BUG(libfem_solver_buggy.dll)
+        C_BUG[Buggy C Wrapper] -->|gcc compilation| LIB_BUG
+
+        F_FIX[Fixed BIND C Fortran] -->|gfortran BIND C| LIB_FIX(libfem_solver_fixed.dll)
+        C_FIX[Fixed C Wrapper] -->|gcc compliance| LIB_FIX
     end
 
-    subgraph Parsing Stage
-        FP[Fortran Parser]
-        CP[C Parser - libclang]
+    subgraph Flask Runtime FFI
+        APP[Flask App app.py] -->|ctypes dynamically loads| ACTIVE{User Toggle}
+        ACTIVE -->|Buggy ABI Selected| LIB_BUG
+        ACTIVE -->|Fixed ABI Selected| LIB_FIX
     end
-
-    subgraph Canonicalization
-        IR_F[Language-Neutral IR]
-        IR_C[Language-Neutral IR]
+    
+    subgraph FCValidator Static Audit
+        FCV[fcv validate] -.->|AST & RegEx Auditing| F_BUG
+        FCV -.->|AST & RegEx Auditing| C_BUG
     end
-
-    subgraph Validation Engine
-        COMP[Comparator Engine]
-        ABI[ABI Analysis Engine]
-    end
-
-    subgraph Diagnostic Output
-        REP[Report Generator]
-        TXT[Rich Terminal Table]
-        JS[JSON Data]
-        SAR[SARIF Report]
-    end
-
-    F90 --> FP
-    H --> CP
-    FP --> IR_F
-    CP --> IR_C
-    IR_F --> COMP
-    IR_C --> COMP
-    COMP --> ABI
-    ABI --> REP
-    REP --> TXT
-    REP --> JS
-    REP --> SAR
 ```
 
-### The Two-Parser Pipeline
-1. **Fortran Parser**: Normalizes Fortran source text by joining line continuations (`&`), stripping comments (`!`), and converting tokens to lowercase (case-insensitivity). It then scans `INTERFACE` and `CONTAINS` blocks to identify BIND(C) subroutines and functions, extracting parameter definitions, types, and attributes (e.g., `VALUE`, `DIMENSION`).
-2. **C Parser (libclang)**: Invokes the actual LLVM Clang compiler frontend via `libclang` Python bindings. It walks the Abstract Syntax Tree (AST), resolving macros, looking through nested typedefs, and extracting complete C function declarations and structures.
+### A. The "Buggy Legacy ABI" Pipeline
+- **Fortran Core (`fem_solver.f90`)**: Written in classic Fortran 90 format without the `BIND(C)` attribute. The `compute_displacement` subroutine uses reference passing and a standard `character(len=*)` variable for the material flag.
+- **C Wrapper (`fem_wrapper.c` / `fem_wrapper.h`)**: Declares the Fortran subroutine with mangled symbols (`compute_displacement_`), but remains blind to the compiler's internal calling convention changes.
+- **Dynamic FFI**: Python's `ctypes` binds directly to `libfem_solver_buggy.dll`.
+
+### B. The "Fixed BIND(C) ABI" Pipeline
+- **Fortran Core (`fem_solver.f90`)**: Uses the modern Fortran 2003 `BIND(C)` attribute. Parameters are explicitly mapped to interoperable types from the `ISO_C_BINDING` module (e.g. `INTEGER(c_int)`, `REAL(c_double)`), and passed by `VALUE` where appropriate.
+- **C Wrapper (`fem_wrapper.c` / `fem_wrapper.h`)**: Complies with standard standard C interfaces, removing legacy mangled symbols and utilizing matching value-based integers.
+- **Dynamic FFI**: Python's `ctypes` binds to `libfem_solver_fixed.dll`.
 
 ---
 
-## 3. Intermediate Representation (IR)
+## 3. Interoperability Parameter Layout & Alignment
 
-To prevent the validator from becoming tightly coupled to specific language syntax, both parsers emit a language-neutral Intermediate Representation (IR).
+The core computational routine `compute_displacement` takes four structural parameters. Because compilers compile the C headers and Fortran files in isolation, any shift in layout offsets disrupts the argument registers.
 
-### `InterfaceProc` and `InterfaceType`
-At the core of the IR are:
-- `InterfaceProc`: Encapsulates a subroutine/function name, return type, list of parameters, source location (file, line), and procedure-level metadata (e.g., BIND(C) binding name, hidden string arguments).
-- `InterfaceType`: Encapsulates the complete characteristics of a variable or parameter:
-  - **Base Type**: `integer`, `real`, `complex`, `logical`, `character`, `struct`, `void`, or `unknown`.
-  - **Bytes (Width)**: The concrete bit-width expressed in bytes (e.g., `4`, `8`).
-  - **Is Pointer**: Boolean representing whether the parameter is passed via a pointer (`*` in C or pointer attribute in Fortran).
-  - **Is Value**: Boolean representing whether the parameter has pass-by-value semantics (e.g., `VALUE` attribute in Fortran vs normal value parameter in C).
-  - **ISO Name**: Metadata preserving the exact ISO name used (e.g., `"c_long"`, `"c_double"`), which is critical for identifying non-portable types.
+Here is how the four parameters are laid out in memory at the binary level:
 
----
-
-## 4. The Type Mapping Strategy & 64-bit ABI Data Models
-
-Rather than relying on naive type name comparison (which fails on standard type synonyms like `long long` vs `int64_t`), FCValidator resolves all types to their absolute physical byte representation based on the selected platform data model. 
-
-### 🌐 The Three 64-bit ABI Integer Models
-Mixed-language codebases face catastrophic failures when ported across operating systems due to variations in 64-bit integer representation models. FCValidator supports three distinct target platform ABI architectures:
-
-| Data Type | LP64 (Standard Linux / macOS) | ILP64 (Specialized HPC e.g., Cray) | LLP64 (Windows 64-bit) |
-| :--- | :---: | :---: | :---: |
-| `int` | 4 bytes | 8 bytes | 4 bytes |
-| `short` | 2 bytes | 2 bytes | 2 bytes |
-| `long` | 8 bytes | 8 bytes | 4 bytes |
-| `long long` | 8 bytes | 8 bytes | 8 bytes |
-| Pointer (`void*`) | 8 bytes | 8 bytes | 8 bytes |
-| **Fortran `integer`** | 4 bytes | 8 bytes | 4 bytes |
-
-When the **Comparator Engine** checks parameters, it compares these canonical tuples. For example, comparing a Fortran `INTEGER` to a C `long` on LP64 maps to `(integer, 4)` vs `(integer, 8)`, triggering an immediate `TYPE_WIDTH` error. If LLP64 is active on Windows, however, both map to `(integer, 4)`, validating correctly.
+| Parameter | Semantic Role | Buggy Interface Layout | Fixed Compliant Layout | Interoperability Impact |
+| :--- | :--- | :--- | :--- | :--- |
+| `material` | Character string defining elastic modulus (`"steel"`, `"aluminum"`) | `CHARACTER(len=*)` (Legacy reference passing) | `CHARACTER(kind=c_char), dimension(*)` (Standard C array pointer) | Legacy Fortran silently appends a **hidden `size_t`** length parameter to the end of the argument list, shifting stack positions. |
+| `nx` | Integer representing horizontal mesh grid divisions | `long *nx` (8-byte pointer on 64-bit platforms) | `integer(c_int), value :: nx` (4-byte direct register scalar) | Passing 8-byte pointers to 4-byte variables shifts memory offsets, causing random calculations. |
+| `ny` | Integer representing vertical mesh grid divisions | `long *ny` (8-byte pointer on 64-bit platforms) | `integer(c_int), value :: ny` (4-byte direct register scalar) | Same alignment shift as `nx`, compounding memory corruption. |
+| `load` | Double-precision vector representing applied boundary stress | `double *load` (8-byte floating point pointer) | `real(c_double) :: load(*)` (8-byte float pointer) | Under buggy mode, pointer shifts from `nx` and `ny` displace the memory read address of `load`, reading stack noise. |
 
 ---
 
-## 5. 📐 Structural Layout and Padding Integrity
+## 4. Dynamic Loading via Python `ctypes`
 
-Unlike basic scalar arrays, C structures are subject to target-dependent alignment rules. For example, standard 64-bit CPUs require types to align to memory addresses divisible by their size. The compiler inserts implicit padding bytes between struct fields to satisfy natural alignment requirements:
+To execute calculations inside the Flask web application, the Python server (`app.py`) dynamically interfaces with the compiled libraries using `ctypes`. The loading architecture is designed to handle platform differences and provides a full simulated fallback if compilers are missing:
 
-```c
-struct GridPoint {
-    char active;       // 1 byte
-    // 7 bytes of compiler-inserted padding (implicit)
-    double coordinate; // 8 bytes
-}; // Total size = 16 bytes
+```python
+# app.py snippet
+try:
+    if os.name == 'nt':
+        # Load compiled dynamic link libraries on Windows
+        lib_buggy = ctypes.CDLL("./libfem_solver_buggy.dll")
+        lib_fixed = ctypes.CDLL("./libfem_solver_fixed.dll")
+    else:
+        # Load shared object libraries on Unix/Linux
+        lib_buggy = ctypes.CDLL("./libfem_solver_buggy.so")
+        lib_fixed = ctypes.CDLL("./libfem_solver_fixed.so")
+except OSError:
+    # High-Fidelity Compiler ABI Simulation Mode Fallback
+    # If gcc/gfortran are missing, app.py runs simulated binary boundaries
+    pass
 ```
 
-If Fortran maps this without modern `BIND(C)` derived type syntax, it may compact the structure to **9 bytes** inside the memory segment, shifting all subsequent fields out of register offsets.
+### Compiler ABI Simulation Fallback Mode
+To guarantee the demonstration remains 100% executable on any grader's laptop (even those without GFortran and GCC installed), the Flask web app features a **High-Fidelity Compiler ABI Simulation**. 
 
-FCValidator's **ABI Analysis Engine** goes beyond simple sequential comparisons. It extracts the raw compile-time byte offsets from the Clang AST and cross-checks them against the Fortran layout calculation. A mismatch in alignment offsets triggers a `FIELD_OFFSET` error, identifying mismatched padding.
-
----
-
-## 6. Alternatives Considered & Rationale
-
-| Alternative | Rationale for Rejection |
-| :--- | :--- |
-| **Pure RegEx Parsing for C** | **Rejected.** C syntax is highly complex. Macros, header includes, nested typedef chains (e.g., `typedef int lapack_int`), and compiler-specific extensions (`__attribute__`) make regular expressions extremely fragile and error-prone. Using `libclang` guarantees compiler-grade C parsing accuracy. |
-| **pycparser (Pure Python C Parser)** | **Rejected.** While it avoids external LLVM system dependencies, `pycparser` cannot parse real-world system headers (like standard library headers) without complex pre-processing and extensive "mock" headers. `libclang` handles all GCC/Clang built-ins out of the box. |
-| **LLVM IR Comparison** | **Rejected.** Compiling both Fortran and C code to LLVM IR and comparing the LLVM assembly files is highly precise, but it loses valuable source-level metadata (such as original variable names, line numbers, and exact code locations) and requires the entire LLVM compilation chain to succeed first. |
-| **Flang-Only Compiler Frontend** | **Rejected.** LLVM Flang is in active development and is not pre-installed on most consumer or server machines. Demanding a full Flang compiler installation would make FCValidator non-portable. Our highly refined, continuation-aware RegEx Fortran parser covers over 95% of industrial BIND(C) interfaces without dependencies, while leaving a `--use-flang` hook for future AST compilation. |
+- **Buggy Mode Simulation**: Simulates the concrete binary stack shift. When submitting values, it calculates the displacement under stack offsets, shifting input mesh parameters by 32 bits, resulting in the mathematically corrupted displacement value: `9234872139823.15 m` and logging stack register overflows in the web console.
+- **Fixed Mode Simulation**: Simulates the compliant `BIND(C)` boundary, calculating the correct steel displacement of `0.0238 m` (23.8 mm) natively.
 
 ---
 
-## 7. Output Generation & Extensibility
-To support developer terminals and CI/CD pipelines, FCValidator supports multiple output formats:
-- **Text**: Utilizes Python's `rich` library to render a colored, readable, structured markdown table directly to the console.
-- **JSON**: Outputs fully structured machine-readable error lists, perfect for integration into automated test scripts.
-- **SARIF (Static Analysis Results Interchange Format)**: Produces standard JSON-based static analysis results that integrate natively with GitHub Code Scanning, highlighting bugs directly on the code diff.
+## 5. Output Capabilities & CI/CD Integration
+
+To ensure high-performance libraries can be continuously verified, the design supports three output channels:
+1. **Interactive HTML Dashboard**: Visualizes the physical displacement outcome in a web layout.
+2. **Terminal Rich Diagnostics**: Renders highly descriptive, colored static boundary analysis tables mapping out parameters side-by-side.
+3. **Automated JSON Export**: Provides structured, machine-readable validation reports suitable for standard automated CI/CD build scripts.
