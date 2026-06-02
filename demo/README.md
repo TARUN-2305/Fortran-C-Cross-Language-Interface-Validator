@@ -12,6 +12,14 @@ Developed as part of the Compiler Design Course Project (Evaluation by HPE Team)
 
 ---
 
+## 🎬 Keynote Video Demonstration
+
+We have provided a complete keynote-style video walkthrough demonstrating **FCValidator** in action against our web-based **HPC Structural FEM Solver Dashboard**:
+* **Online Stream (OneDrive Link):** [Watch Video Demonstration](https://1drv.ms/v/c/838889d9a4b62e44/IQABIxRq4Hi8RqEuj9h2iVrmAd3XZ5onEaAMgfwAKfOVsRU?e=bBKwcr)
+* **Local Video File:** [Demo.mp4](Demo.mp4)
+
+---
+
 ## 📖 The Narrative: A Story of a Silent Runtime Disaster
 
 Scientific programming relies heavily on mixing language front-ends. In this demonstration, we simulate a standard structural engineering scenario:
