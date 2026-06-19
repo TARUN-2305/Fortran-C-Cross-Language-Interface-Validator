@@ -1,21 +1,21 @@
-! fem_solver_buggy.f90 — Buggy legacy Fortran interface (No BIND(C))
-subroutine compute_displacement(material, nx, ny, load, result)
+! fem_solver_buggy.f90 — Buggy Fortran solver interface (Uses BIND(C) with mismatches)
+subroutine compute_displacement(material, nx, ny, load, result) bind(c, name="compute_displacement")
+  use iso_c_binding
   implicit none
-  character(len=*), intent(in)  :: material  ! ← Injects hidden strlen arg
-  integer,          intent(in)  :: nx, ny    ! ← 4-byte standard integers
-  real(8),          intent(in)  :: load
-  real(8),          intent(out) :: result
+  character(kind=c_char), intent(in)  :: material(*)  ! Passed by reference
+  integer(c_int),         intent(in)  :: nx, ny       ! ← Mismatch: Passed by reference (missing 'value')
+  real(c_double),         intent(in)  :: load         ! ← Mismatch: Passed by reference (missing 'value')
+  real(c_double),         intent(out) :: result       ! Passed by reference
 
   logical :: is_steel
 
-  ! Because of string length corruption, this check will read garbage string sizes
   is_steel = .true.
-  if (material == "Aluminum" .or. material == "aluminum") then
+  if (material(1) == 'A' .or. material(1) == 'a') then
      is_steel = .false.
   end if
 
   ! Call the actual 1D Finite Element Method Solver
-  call solve_fem(is_steel, nx, load, result)
+  call solve_fem(is_steel, int(nx), load, result)
 end subroutine compute_displacement
 
 

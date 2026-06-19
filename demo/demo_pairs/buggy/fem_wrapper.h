@@ -2,9 +2,10 @@
 #ifndef FEM_WRAPPER_H
 #define FEM_WRAPPER_H
 
-/* Note the trailing underscore due to the lack of Fortran BIND(C) */
-/* nx and ny are mismatched long pointers (8 bytes on LP64) vs Fortran 4-byte integer */
-void compute_displacement_(char *material, long *nx, long *ny, 
-                           double *load, double *result);
+/* Uses BIND(C) name matching but contains type & calling convention mismatches: */
+/* - nx, ny are passed by VALUE as 8-byte 'long' (Fortran expects 4-byte int by REFERENCE) */
+/* - load is passed by VALUE as 8-byte 'double' (Fortran expects double by REFERENCE) */
+void compute_displacement(const char *material, long nx, long ny, 
+                          double load, double *result);
 
 #endif /* FEM_WRAPPER_H */
