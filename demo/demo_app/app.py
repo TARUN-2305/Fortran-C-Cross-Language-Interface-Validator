@@ -76,7 +76,6 @@ def index():
     solver_mode = "buggy"
     material = "Steel"
     nx = 100
-    ny = 100
     load = 5000.0
     error_msg = None
     success = False
@@ -87,10 +86,9 @@ def index():
         material = request.form.get("material", "Steel")
         try:
             nx = int(request.form.get("nx", 100))
-            ny = int(request.form.get("ny", 100))
             load = float(request.form.get("load", 5000.0))
         except ValueError:
-            error_msg = "Invalid inputs. nx and ny must be integers; load must be float."
+            error_msg = "Invalid inputs. nx must be an integer; load must be float."
             
         if not error_msg:
             try:
@@ -98,14 +96,14 @@ def index():
                 lib = load_solver_lib(solver_mode)
                 
                 # Expose C prototype:
-                lib.run_solver.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_long, ctypes.c_double]
+                lib.run_solver.argtypes = [ctypes.c_char_p, ctypes.c_long, ctypes.c_double]
                 lib.run_solver.restype = ctypes.c_double
                 
                 # Encode string to bytes for C compatibility
                 mat_bytes = material.encode('utf-8')
                 
                 # Run computation
-                raw_result = lib.run_solver(mat_bytes, nx, ny, load)
+                raw_result = lib.run_solver(mat_bytes, nx, load)
                 
                 if solver_mode == "buggy":
                     if raw_result == -999.0 or abs(raw_result) < 1e-4:
@@ -179,7 +177,6 @@ def index():
                            solver_mode=solver_mode, 
                            material=material, 
                            nx=nx, 
-                           ny=ny, 
                            load=load, 
                            error_msg=error_msg,
                            success=success,

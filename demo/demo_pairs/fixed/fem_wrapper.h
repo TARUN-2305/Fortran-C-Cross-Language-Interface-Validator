@@ -4,7 +4,7 @@
 
 /* Fully interoperable with Fortran BIND(C) version */
 /* Standard C-types: char pointer, 4-byte int, and 8-byte double */
-void compute_displacement(const char *material, int nx, int ny, 
+void compute_displacement(const char *material, int nx, 
                           double load, double *result);
 
 #endif /* FEM_WRAPPER_H */

@@ -1,9 +1,9 @@
 ! fem_solver.f90 — Buggy Fortran Solver Interface (Uses BIND(C) with mismatches)
-subroutine compute_displacement(material, nx, ny, load, result) bind(c, name="compute_displacement")
+subroutine compute_displacement(material, nx, load, result) bind(c, name="compute_displacement")
   use iso_c_binding
   implicit none
   character(kind=c_char), intent(in)  :: material(*)  ! Passed by reference
-  integer(c_int),         intent(in)  :: nx, ny       ! ← Mismatch: Passed by reference (missing 'value')
+  integer(c_int),         intent(in)  :: nx           ! ← Mismatch: Passed by reference (missing 'value')
   real(c_double),         intent(in)  :: load         ! ← Mismatch: Passed by reference (missing 'value')
   real(c_double),         intent(out) :: result       ! Passed by reference
 

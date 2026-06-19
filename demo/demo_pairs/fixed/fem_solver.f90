@@ -1,9 +1,9 @@
 ! fem_solver.f90 — Fixed Fortran solver interface (With BIND(C))
-subroutine compute_displacement(material, nx, ny, load, result) bind(c, name="compute_displacement")
+subroutine compute_displacement(material, nx, load, result) bind(c, name="compute_displacement")
   use iso_c_binding
   implicit none
   character(kind=c_char), intent(in)  :: material(*)  ! ← Standard C-string pointer
-  integer(c_int), value,  intent(in)  :: nx, ny       ! ← 4-byte standard integers passed by VALUE
+  integer(c_int), value,  intent(in)  :: nx           ! ← 4-byte standard integer passed by VALUE
   real(c_double), value,  intent(in)  :: load         ! ← 8-byte double passed by VALUE
   real(c_double),         intent(out) :: result       ! ← Returned by reference pointer
 
@@ -137,7 +137,7 @@ subroutine solve_fem(is_steel, nx, load, result)
      end if
   end do
 
-  ! Tip displacement deflection
+  ! Center displacement deflection
   result = u(2*center_node + 1)
 
   deallocate(K, F, u)

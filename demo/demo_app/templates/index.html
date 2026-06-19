@@ -336,13 +336,8 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="nx">Mesh Grid nx (Subdivisions)</label>
+                        <label for="nx">Mesh Elements (nx Subdivisions)</label>
                         <input type="number" name="nx" id="nx" class="form-control" value="{{ nx }}">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="ny">Mesh Grid ny (Subdivisions)</label>
-                        <input type="number" name="ny" id="ny" class="form-control" value="{{ ny }}">
                     </div>
 
                     <div class="form-group">
@@ -480,7 +475,7 @@
         const solverMode = "{{ solver_mode }}";
         const material = "{{ material }}";
         const nx = parseInt("{{ nx }}") || 100;
-        const ny = parseInt("{{ ny }}") || 100;
+        const ny = 4; // Constant height elements for visual mesh
         const load = parseFloat("{{ load }}") || 5000.0;
         
         let animationFrameId;
