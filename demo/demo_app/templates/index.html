@@ -242,6 +242,58 @@
             15% { transform: skew(0deg); }
             100% { transform: skew(0deg); }
         }
+
+        /* Interactive Canvas & Audit styling */
+        .full-width-card {
+            grid-column: 1 / -1;
+        }
+
+        .visualizer-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 380px;
+        }
+
+        canvas {
+            background-color: #0b0f19;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.6);
+            max-width: 100%;
+        }
+
+        .audit-card {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+
+        .mismatch-item {
+            border-left: 4px solid var(--danger);
+            background: rgba(239, 68, 68, 0.05);
+            padding: 16px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+        }
+
+        .mismatch-item-warning {
+            border-left-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.05);
+        }
+
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 12px;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -327,9 +379,261 @@
             </div>
         </div>
 
+        <!-- Visualizer & Static Audit Cards -->
+        <div class="grid" style="margin-top: 24px;">
+            <!-- FEM Cantilever/Bridge Visualizer Card -->
+            <div class="card full-width-card visualizer-card">
+                <div class="report-header">
+                    <h3 style="color: var(--primary); font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Cantilever Beam FEM Solver Mesh</h3>
+                    <span class="badge {% if solver_mode == 'buggy' %}badge-danger{% else %}badge-success{% endif %}">
+                        {% if solver_mode == 'buggy' %}Memory Corrupted (Glitch){% else %}Valid Displacement Heatmap{% endif %}
+                    </span>
+                </div>
+                <canvas id="femCanvas" width="800" height="260" style="margin: 10px 0;"></canvas>
+                <div style="width: 100%; display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); margin-top: 5px;">
+                    <span>Left Support (Fixed boundary)</span>
+                    <span>Applied Load: {{ load }} N at Center (x = 0.5)</span>
+                    <span>Right Support (Fixed boundary)</span>
+                </div>
+            </div>
+
+            <!-- Static Analysis Audit Card -->
+            <div class="card full-width-card">
+                <div class="report-header">
+                    <h3 style="color: var(--primary); font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">FCValidator Compiler Static Audit Report</h3>
+                    <span class="badge {% if validation_mismatches %}badge-danger{% else %}badge-success{% endif %}">
+                        {% if validation_mismatches %}{{ validation_mismatches|length }} Mismatches Found{% else %}Zero Mismatches (ABI Verified){% endif %}
+                    </span>
+                </div>
+
+                {% if validation_mismatches %}
+                    <div style="margin-bottom: 25px;">
+                        {% for m in validation_mismatches %}
+                            <div class="mismatch-item {% if m.severity.lower() == 'warning' %}mismatch-item-warning{% endif %}">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: 600; font-size: 0.9rem;">
+                                    <span style="color: {% if m.severity.lower() == 'warning' %}#f59e0b{% else %}var(--danger){% endif %};">[FCV-{{ m.category }}] {{ m.severity }}</span>
+                                    <span style="color: var(--text-muted);">Procedure: {{ m.proc_name }}</span>
+                                </div>
+                                <div style="font-size: 0.9rem; line-height: 1.4; color: var(--text-main); font-family: 'JetBrains Mono', monospace; white-space: pre-wrap;">{{ m.message }}</div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-success" style="margin-bottom: 20px;">
+                        <strong>🎉 Static Verification Succeeded!</strong><br>
+                        FCValidator compiled both C and Fortran interfaces, matched signatures, and verified that natural alignments and type byte-widths are fully identical at the binary level. No ABI mismatch risks detected.
+                    </div>
+                {% endif %}
+
+                <!-- Side-by-side signature inspector -->
+                <h4 style="color: var(--text-main); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; font-weight: 600;">Mismatched Language Boundaries</h4>
+                
+                <div class="grid" style="gap: 15px;">
+                    <!-- Fortran IR -->
+                    <div class="audit-card">
+                        <div style="font-weight: 600; color: var(--primary); margin-bottom: 8px; font-size: 0.9rem; text-transform: uppercase;">Fortran IR Interface</div>
+                        {% if f_proc_info %}
+                            {% for p in f_proc_info %}
+                                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; line-height: 1.5;">
+                                    <span style="color: #c084fc;">subroutine</span> <strong style="color: var(--text-main);">{{ p.name }}</strong>(<br>
+                                    {% for param_name, decl in p.params %}
+                                        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--text-muted);">{{ decl }}</span>{% if not loop.last %},{% endif %}<br>
+                                    {% endfor %}
+                                    )
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div style="font-size: 0.85rem; color: var(--text-muted);">No parsed Fortran procedures.</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- C IR -->
+                    <div class="audit-card">
+                        <div style="font-weight: 600; color: var(--primary); margin-bottom: 8px; font-size: 0.9rem; text-transform: uppercase;">C IR Header Signature</div>
+                        {% if c_proc_info %}
+                            {% for p in c_proc_info %}
+                                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; line-height: 1.5;">
+                                    <span style="color: #c084fc;">{{ p.return_type }}</span> <strong style="color: var(--text-main);">{{ p.name }}</strong>(<br>
+                                    {% for param_name, decl in p.params %}
+                                        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color: var(--text-muted);">{{ decl }}</span>{% if not loop.last %},{% endif %}<br>
+                                    {% endfor %}
+                                    );
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div style="font-size: 0.85rem; color: var(--text-muted);">No parsed C declarations.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <footer>
             Compiler Design Course Project • Department of CSE, RVCE
         </footer>
     </div>
+
+    <script>
+        const canvas = document.getElementById("femCanvas");
+        const ctx = canvas.getContext("2d");
+        
+        const solverMode = "{{ solver_mode }}";
+        const material = "{{ material }}";
+        const nx = parseInt("{{ nx }}") || 100;
+        const ny = parseInt("{{ ny }}") || 100;
+        const load = parseFloat("{{ load }}") || 5000.0;
+        
+        let animationFrameId;
+        let tick = 0;
+        
+        function getStressColor(stress) {
+            const hue = (1.0 - stress) * 240; 
+            return `hsl(${hue}, 90%, 50%)`;
+        }
+        
+        function drawMesh() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const w = canvas.width;
+            const h = canvas.height;
+            const marginX = 50;
+            const marginY = 50;
+            const meshWidth = w - 2 * marginX;
+            const meshHeight = h - 2 * marginY;
+            
+            const nxDisplay = Math.min(nx, 25);
+            const nyDisplay = Math.min(ny, 10);
+            
+            const dx = meshWidth / nxDisplay;
+            const dy = meshHeight / nyDisplay;
+            
+            const modulus = (material === "Steel") ? 210.0 : 70.0;
+            const maxDisplace = Math.min((load / (modulus * 1000.0)) * 60, 45); 
+            
+            tick++;
+            
+            const nodes = [];
+            for (let i = 0; i <= nxDisplay; i++) {
+                nodes[i] = [];
+                const xRatio = i / nxDisplay;
+                
+                for (let j = 0; j <= nyDisplay; j++) {
+                    const yRatio = j / nyDisplay;
+                    
+                    let bx = marginX + xRatio * meshWidth;
+                    let by = marginY + yRatio * meshHeight;
+                    
+                    let displacement = 0;
+                    if (solverMode === 'fixed') {
+                        displacement = maxDisplace * Math.sin(Math.PI * xRatio);
+                    }
+                    
+                    let finalX = bx;
+                    let finalY = by + displacement;
+                    
+                    if (solverMode === 'buggy') {
+                        const shiftX = Math.sin(i * 123.45 + j * 67.89 + tick * 0.05) * 25;
+                        const shiftY = Math.cos(i * 98.76 + j * 54.32 + tick * 0.05) * 25;
+                        finalX += shiftX;
+                        finalY += shiftY;
+                        
+                        if (Math.random() < 0.005) {
+                            finalX += (Math.random() - 0.5) * 150;
+                            finalY += (Math.random() - 0.5) * 150;
+                        }
+                    }
+                    
+                    const xStress = Math.sin(Math.PI * xRatio);
+                    const yStress = Math.abs(yRatio - 0.5) * 2.0; 
+                    const stress = solverMode === 'buggy' ? Math.random() : xStress * (0.4 + yStress * 0.6);
+                    
+                    nodes[i][j] = { x: finalX, y: finalY, stress: stress };
+                }
+            }
+            
+            for (let i = 0; i < nxDisplay; i++) {
+                for (let j = 0; j < nyDisplay; j++) {
+                    const n00 = nodes[i][j];
+                    const n10 = nodes[i+1][j];
+                    const n11 = nodes[i+1][j+1];
+                    const n01 = nodes[i][j+1];
+                    
+                    const avgStress = (n00.stress + n10.stress + n11.stress + n01.stress) / 4.0;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(n00.x, n00.y);
+                    ctx.lineTo(n10.x, n10.y);
+                    ctx.lineTo(n11.x, n11.y);
+                    ctx.lineTo(n01.x, n01.y);
+                    ctx.closePath();
+                    
+                    ctx.fillStyle = getStressColor(avgStress);
+                    ctx.globalAlpha = solverMode === 'buggy' ? 0.3 : 0.45;
+                    ctx.fill();
+                    
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+                    ctx.lineWidth = 1;
+                    ctx.globalAlpha = 1.0;
+                    ctx.stroke();
+                }
+            }
+            
+            if (solverMode === 'fixed' && nxDisplay > 0) {
+                const midI = Math.floor(nxDisplay / 2);
+                const midJ = 0; 
+                const loadNode = nodes[midI][midJ];
+                
+                ctx.beginPath();
+                ctx.moveTo(loadNode.x, loadNode.y - 35);
+                ctx.lineTo(loadNode.x, loadNode.y - 5);
+                ctx.strokeStyle = "var(--danger)";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(loadNode.x - 6, loadNode.y - 12);
+                ctx.lineTo(loadNode.x, loadNode.y - 3);
+                ctx.lineTo(loadNode.x + 6, loadNode.y - 12);
+                ctx.closePath();
+                ctx.fillStyle = "var(--danger)";
+                ctx.fill();
+                
+                ctx.fillStyle = "var(--danger)";
+                ctx.font = "bold 11px Outfit";
+                ctx.fillText("LOAD", loadNode.x - 14, loadNode.y - 40);
+            }
+            
+            ctx.fillStyle = "#94a3b8";
+            const leftTop = nodes[0][0];
+            const leftBot = nodes[0][nyDisplay];
+            ctx.beginPath();
+            ctx.moveTo(leftTop.x - 12, leftTop.y + (leftBot.y - leftTop.y)/2 - 10);
+            ctx.lineTo(leftTop.x - 2, leftTop.y + (leftBot.y - leftTop.y)/2);
+            ctx.lineTo(leftTop.x - 12, leftTop.y + (leftBot.y - leftTop.y)/2 + 10);
+            ctx.closePath();
+            ctx.fill();
+            
+            const rightTop = nodes[nxDisplay][0];
+            const rightBot = nodes[nxDisplay][nyDisplay];
+            ctx.beginPath();
+            ctx.moveTo(rightTop.x + 12, rightTop.y + (rightBot.y - rightTop.y)/2 - 10);
+            ctx.lineTo(rightTop.x + 2, rightTop.y + (rightBot.y - rightTop.y)/2);
+            ctx.lineTo(rightTop.x + 12, rightTop.y + (rightBot.y - rightTop.y)/2 + 10);
+            ctx.closePath();
+            ctx.fill();
+            
+            if (solverMode === 'buggy') {
+                animationFrameId = requestAnimationFrame(drawMesh);
+            }
+        }
+        
+        drawMesh();
+        
+        window.addEventListener('beforeunload', () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+        });
+    </script>
 </body>
 </html>

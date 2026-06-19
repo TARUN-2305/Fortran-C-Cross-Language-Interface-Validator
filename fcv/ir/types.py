@@ -24,6 +24,8 @@ class StructType:
     fields: List[Tuple[str, Any]]   # (field_name, type) - Any used for recursive 'AnyType'
     is_bind_c: bool = False
     is_optional: bool = False
+    field_offsets: List[int] = None
+    size: int = 0
 
 AnyType = Union[ScalarType, ArrayType, StructType]
 

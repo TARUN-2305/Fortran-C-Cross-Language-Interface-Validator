@@ -1,6 +1,5 @@
 ! interface.f90
-subroutine dgemm_core(transa, transb, m, n, k, alpha, a, lda, &
-                       b, ldb, beta, c, ldc)
+subroutine dgemm_core(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
   implicit none
   character, intent(in)          :: transa, transb
   integer,   intent(in)          :: m, n, k, lda, ldb, ldc

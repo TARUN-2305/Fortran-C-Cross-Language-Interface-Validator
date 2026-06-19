@@ -37,11 +37,43 @@ class CParser:
                 decl = cx_type.get_named_type().get_declaration()
             name = decl.spelling
             fields = []
+            field_offsets = []
             for field in decl.get_children():
                 if field.kind == cl.CursorKind.FIELD_DECL:
                     f_type = self._cx_type_to_ir(field.type)
                     fields.append((field.spelling, f_type))
-            return StructType(name=name, fields=fields, is_bind_c=True)
+                    offset_bits = field.get_field_offsetof()
+                    offset_bytes = offset_bits // 8 if offset_bits >= 0 else 0
+                    field_offsets.append(offset_bytes)
+            
+            # If the decl is incomplete (0 fields), scan translation unit for a complete definition
+            if not fields and decl.translation_unit:
+                tu = decl.translation_unit
+                for cursor in tu.cursor.walk_preorder():
+                    if cursor.spelling == name and cursor.kind in (cl.CursorKind.TYPEDEF_DECL, cl.CursorKind.STRUCT_DECL):
+                        target_decl = cursor
+                        if cursor.kind == cl.CursorKind.TYPEDEF_DECL:
+                            target_decl = cursor.underlying_typedef_type.get_declaration()
+                        
+                        temp_fields = []
+                        temp_offsets = []
+                        for field in target_decl.get_children():
+                            if field.kind == cl.CursorKind.FIELD_DECL:
+                                f_type = self._cx_type_to_ir(field.type)
+                                temp_fields.append((field.spelling, f_type))
+                                offset_bits = field.get_field_offsetof()
+                                offset_bytes = offset_bits // 8 if offset_bits >= 0 else 0
+                                temp_offsets.append(offset_bytes)
+                        if temp_fields:
+                            fields = temp_fields
+                            field_offsets = temp_offsets
+                            cx_type = target_decl.type
+                            break
+
+            size = cx_type.get_size()
+            if size < 0:
+                size = 0
+            return StructType(name=name, fields=fields, is_bind_c=True, field_offsets=field_offsets, size=size)
             
         # Basic types
         spelling = cx_type.spelling.replace("const ", "").replace("restrict ", "").strip()

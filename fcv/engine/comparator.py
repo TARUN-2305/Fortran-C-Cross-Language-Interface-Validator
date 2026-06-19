@@ -108,13 +108,114 @@ class Comparator:
         elif isinstance(ft, StructType) and isinstance(ct, StructType):
             if not ft.is_bind_c:
                 self._add_mismatch("NON_INTEROPERABLE_TYPE", "ERROR",
-                               f"Type '{ft.name}' lacks BIND(C) attribute", proc_name)
+                                   f"NON_INTEROPERABLE_TYPE: Fortran derived type '{ft.name}' lacks BIND(C)\n"
+                                   f"  attribute. Layout is implementation-defined. Cannot compare with C struct.\n"
+                                   f"  Fortran 2003 §15.3.5: non-BIND(C) derived types are not interoperable.",
+                                   proc_name)
+                
+                for fname, ftype in ft.fields:
+                    if isinstance(ftype, ScalarType) and ftype.base == "logical":
+                        self._add_mismatch("LOGICAL_IN_NON_BIND_TYPE", "ERROR",
+                                           f"LOGICAL_IN_NON_BIND_TYPE: Field '{fname}' has LOGICAL type. In a\n"
+                                           f"  non-BIND(C) type, LOGICAL has compiler-defined width and encoding.\n"
+                                           f"  GFortran uses 4 bytes; may differ from C 'int' or '_Bool'.",
+                                           proc_name)
+            else:
+                for fname, ftype in ft.fields:
+                    if isinstance(ftype, StructType) and not ftype.is_bind_c:
+                        self._add_mismatch("NESTED_NON_BIND", "ERROR",
+                                           f"NESTED_NON_BIND: Field '{fname}' is of type '{ftype.name}' which lacks BIND(C).\n"
+                                           f"  A BIND(C) derived type must have all components of interoperable type.\n"
+                                           f"  Fortran 2003 §15.3.4 C1505: violation. Struct layout is undefined.",
+                                           proc_name)
+            
+            has_pragma_pack = False
+            if ct.field_offsets and ft.field_offsets:
+                if ct.size < ft.size:
+                    has_pragma_pack = True
+            
+            if has_pragma_pack:
+                self._add_mismatch("PACKED_STRUCT", "WARNING",
+                                   "PACKED_STRUCT: #pragma pack(1) detected on interop struct. Packed C structs\n"
+                                   "  are rarely compatible with Fortran BIND(C) natural alignment.",
+                                   proc_name)
             
             if len(ft.fields) != len(ct.fields):
                 self._add_mismatch("Struct field count mismatch", "ERROR",
                                f"Struct '{ft.name}' has {len(ft.fields)} fields in Fortran but {len(ct.fields)} in C",
                                proc_name, str(len(ft.fields)), str(len(ct.fields)))
                 return
+            
+            if ft.field_offsets and ct.field_offsets:
+                for i in range(min(len(ft.fields), len(ct.field_offsets))):
+                    f_fname, f_ftype = ft.fields[i]
+                    c_fname, c_ftype = ct.fields[i]
+                    f_offset = ft.field_offsets[i]
+                    c_offset = ct.field_offsets[i]
+                    if f_offset != c_offset:
+                        prec_fname = ft.fields[i-1][0] if i > 0 else 'start'
+                        padding_str = ""
+                        if i > 0:
+                            def get_size(t):
+                                if isinstance(t, ScalarType):
+                                    if t.is_pointer: return 8
+                                    if t.base == "complex": return 2 * t.kind_bytes
+                                    return t.kind_bytes
+                                elif isinstance(t, StructType):
+                                    return t.size
+                                elif isinstance(t, ArrayType):
+                                    elem_s = get_size(t.element)
+                                    num_el = 1
+                                    for dim in t.shape:
+                                        if dim is not None: num_el *= dim
+                                    return elem_s * num_el
+                                return 8
+                            prec_size = get_size(ft.fields[i-1][1])
+                            padding_bytes = f_offset - ft.field_offsets[i-1] - prec_size
+                            if padding_bytes > 0:
+                                padding_str = f", {padding_bytes} bytes padding after '{prec_fname}'"
+                                
+                        self._add_mismatch("STRUCT_LAYOUT", "ERROR",
+                            f"STRUCT_LAYOUT: Field '{f_fname}' offset mismatch.\n"
+                            f"    Fortran BIND(C): offset={f_offset} (natural alignment{padding_str})\n"
+                            f"    C #pragma pack(1): offset={c_offset} (packed, no padding)\n"
+                            f"  Total struct size: Fortran={ft.size} bytes, C={ct.size} bytes.\n"
+                            f"  Every field after '{prec_fname}' reads from wrong address. Silent corruption.",
+                            proc_name)
+                        break
+
+            swapped = False
+            for i in range(len(ft.fields)):
+                f_fname, f_ftype = ft.fields[i]
+                c_fname, c_ftype = ct.fields[i]
+                if f_fname != c_fname:
+                    for j in range(len(ft.fields)):
+                        if i != j:
+                            f_fname2, f_ftype2 = ft.fields[j]
+                            c_fname2, c_ftype2 = ct.fields[j]
+                            if f_fname == c_fname2 and c_fname == f_fname2:
+                                swapped = True
+                                def get_type_str(t):
+                                    if isinstance(t, ScalarType):
+                                        if t.base == "real":
+                                            return f"REAL({t.iso_name or 'c_double'})"
+                                        return f"INTEGER({t.iso_name or 'c_int'})"
+                                    return "double"
+                                def get_c_type_str(t):
+                                    if isinstance(t, ScalarType):
+                                        return t.base
+                                    return "double"
+                                self._add_mismatch("FIELD_ORDER", "ERROR",
+                                    f"FIELD_ORDER: Field[{i}] Fortran='{f_fname}'({get_type_str(f_ftype)}), C='{c_fname}'({get_c_type_str(c_ftype)}).\n"
+                                    f"               Field[{j}] Fortran='{f_fname2}'({get_type_str(f_ftype2)}), C='{c_fname2}'({get_c_type_str(c_ftype2)}).\n"
+                                    f"  Types are compatible but order is swapped. {f_fname.capitalize()}/{c_fname.capitalize()} values will be\n"
+                                    "  exchanged. Silent wrong-answer bug in physics simulations.\n\n"
+                                    "NOTE: Fortran field NAMES are irrelevant per Fortran 2003 §15.3.4.\n"
+                                    "      Field positions and types must match positionally.",
+                                    proc_name)
+                                break
+                    if swapped:
+                        break
             
             for (f_fname, f_ftype), (c_fname, c_ftype) in zip(ft.fields, ct.fields):
                 self._compare_types(proc_name, f"{param_name}.{f_fname}", f_ftype, c_ftype)

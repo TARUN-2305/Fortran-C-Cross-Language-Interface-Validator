@@ -52,6 +52,9 @@ def get_fortran_iso_type(name: str, platform: str = "lp64") -> Optional[Tuple[st
             return ("integer", 8)
         if name == "c_size_t":
             return ("integer", 8)
+    elif platform == "llp64":
+        if name == "c_long":
+            return ("integer", 4)
 
     return base, kind
 
@@ -63,7 +66,7 @@ def get_c_type_mapping(c_type_name: str, platform: str = "lp64") -> Optional[Tup
     mapping = {
         "int": ("integer", 4 if platform != "ilp64" else 8),
         "short": ("integer", 2),
-        "long": ("integer", 8),
+        "long": ("integer", 8 if platform != "llp64" else 4),
         "long_long": ("integer", 8),
         "char": ("integer", 1),
         "signed_char": ("integer", 1),

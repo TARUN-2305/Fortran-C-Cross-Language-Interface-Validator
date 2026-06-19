@@ -9,7 +9,7 @@ type, bind(c) :: outer_t  ! BIND(C) — but contains non-interoperable inner!
 end type
   interface
     subroutine dummy_proc(x) bind(c)
-      import :: outer_struct
-      type(outer_struct), intent(in) :: x
+      import :: outer_t
+      type(outer_t), intent(in) :: x
     end subroutine
   end interface
