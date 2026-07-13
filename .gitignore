@@ -15,3 +15,4 @@ test.h
 .venv/
 pat.txt
 demo/lapack_temp/
+scratch/

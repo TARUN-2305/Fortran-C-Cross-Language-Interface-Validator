@@ -1,11 +1,29 @@
 import subprocess
 import os
 import re
+import sys
 from typing import List, Optional, Tuple, Dict, Any
 
 from fcv.ir.types import InterfaceProc, ScalarType, ArrayType, StructType, AnyType
 from fcv.ir.type_map import get_fortran_iso_type
 from fcv.parsers.fortran_parser import FortranParser, parse_fortran_file
+from fcv.parsers.gfortran_parser import GfortranParser, _gfortran_binary
+
+
+def fortran_parser_backend_name() -> str:
+    """Return a human-readable name for the Fortran parser backend that will be used."""
+    try:
+        result = subprocess.run(
+            ["flang-new", "--version"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            return "flang-new (LLVM Flang compiler frontend)"
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    if _gfortran_binary():
+        return f"gfortran ({_gfortran_binary()}) compiler frontend"
+    return "regex-based Fortran parser (no compiler available — install gfortran or flang-new for compiler-grade accuracy)"
 
 class FlangASTNode:
     def __init__(self, name: str, value: str = ""):
@@ -52,10 +70,19 @@ class FlangParser:
                     f"but --use-flang was explicitly requested.\n"
                     f"Please make sure flang-new is available in your PATH.\nDetails: {e}"
                 )
-            import sys
+            # Fallback 1: gfortran (real compiler, better than regex)
+            gfortran = GfortranParser(self.platform)
+            if gfortran.available:
+                print(
+                    "INFO: flang-new not found. Using gfortran compiler frontend.",
+                    file=sys.stderr
+                )
+                return gfortran.parse_file(filepath)
+            # Fallback 2: regex parser
             print(
-                f"WARNING: flang-new not found in PATH or failed to parse. "
-                f"Falling back to custom Fortran parser.",
+                "WARNING: No Fortran compiler (flang-new or gfortran) found in PATH. "
+                "Falling back to regex-based Fortran parser. "
+                "Install gfortran for compiler-grade accuracy: sudo apt-get install gfortran",
                 file=sys.stderr
             )
             fallback = FortranParser(self.platform)

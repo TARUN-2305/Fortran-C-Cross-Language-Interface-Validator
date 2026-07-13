@@ -39,11 +39,14 @@ def validate(fortran_file, c_header, format, severity, platform, use_flang, no_c
                 k, v = pair.split('=', 1)
                 name_map_dict[k.strip().lower()] = v.strip()
                 
+    from fcv.parsers.flang_parser import parse_fortran_file_flang, fortran_parser_backend_name
+    if format == 'text':
+        click.echo(f"INFO: Using Fortran frontend: {fortran_parser_backend_name()}", err=True)
+        
     if use_flang:
-        from fcv.parsers.flang_parser import parse_fortran_file_flang
-        f_procs = parse_fortran_file_flang(fortran_file, platform)
+        f_procs = parse_fortran_file_flang(fortran_file, platform, raise_on_error=True)
     else:
-        f_procs = parse_fortran_file(fortran_file, platform)
+        f_procs = parse_fortran_file_flang(fortran_file, platform, raise_on_error=False)
     c_procs = parse_c_header(c_header, platform, cflags=cflags_list)
     
     mismatches = compare_interfaces(f_procs, c_procs, platform,
