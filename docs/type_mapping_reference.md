@@ -10,7 +10,9 @@ The following outlines the baseline canonical mappings of Fortran 2003 `ISO_C_BI
 | `c_float` | `float` | `real` | 4 |
 | `c_double` | `double` | `real` | 8 |
 | `c_bool` | `_Bool` | `logical` | 1 |
-| `c_float_complex` | `float _Complex` | `complex` | 4 |
+| `c_float_complex` | `float _Complex` | `complex` | 8 |
+| `c_double_complex` | `double _Complex` | `complex` | 16 |
 | `c_ptr` | `void*` | `integer` (ptr) | 8 |
+| `c_funptr` | `void (*)(void)` | `integer` (ptr) | 8 |
 
-*Note: In ILP64 mode, `c_int` becomes 8 bytes.*
+*Note: In ILP64 mode, `c_int` becomes 8 bytes. In LLP64 mode (Windows), `c_long` becomes 4 bytes.*

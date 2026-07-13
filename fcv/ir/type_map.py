@@ -25,9 +25,9 @@ _BASE_MAPPINGS = {
     "c_float": ("real", 4),
     "c_double": ("real", 8),
     "c_long_double": ("real", 16),
-    "c_float_complex": ("complex", 4),
-    "c_double_complex": ("complex", 8),
-    "c_long_double_complex": ("complex", 16),
+    "c_float_complex": ("complex", 8),
+    "c_double_complex": ("complex", 16),
+    "c_long_double_complex": ("complex", 32),
     "c_bool": ("logical", 1),
     "c_char": ("character", 1),
     "c_ptr": ("integer", 8),
@@ -52,6 +52,9 @@ def get_fortran_iso_type(name: str, platform: str = "lp64") -> Optional[Tuple[st
             return ("integer", 8)
         if name == "c_size_t":
             return ("integer", 8)
+    elif platform == "llp64":
+        if name == "c_long":
+            return ("integer", 4)
 
     return base, kind
 
@@ -63,7 +66,7 @@ def get_c_type_mapping(c_type_name: str, platform: str = "lp64") -> Optional[Tup
     mapping = {
         "int": ("integer", 4 if platform != "ilp64" else 8),
         "short": ("integer", 2),
-        "long": ("integer", 8),
+        "long": ("integer", 8 if platform != "llp64" else 4),
         "long_long": ("integer", 8),
         "char": ("integer", 1),
         "signed_char": ("integer", 1),
@@ -74,12 +77,26 @@ def get_c_type_mapping(c_type_name: str, platform: str = "lp64") -> Optional[Tup
         "long_double": ("real", 16),
         "_Bool": ("logical", 1),
         "bool": ("logical", 1),
-        "float__Complex": ("complex", 4),
-        "_Complex_float": ("complex", 4),
-        "double__Complex": ("complex", 8),
-        "_Complex_double": ("complex", 8),
-        "long_double__Complex": ("complex", 16),
-        "_Complex_long_double": ("complex", 16),
+        "float__Complex": ("complex", 8),
+        "_Complex_float": ("complex", 8),
+        "double__Complex": ("complex", 16),
+        "_Complex_double": ("complex", 16),
+        "long_double__Complex": ("complex", 32),
+        "_Complex_long_double": ("complex", 32),
+        
+        # Add unsigned types
+        "unsigned_int": ("integer", 4 if platform != "ilp64" else 8),
+        "unsigned_short": ("integer", 2),
+        "unsigned_long": ("integer", 8 if platform != "llp64" else 4),
+        "unsigned_long_long": ("integer", 8),
+        
+        # Add long/short integer variations
+        "long_int": ("integer", 8 if platform != "llp64" else 4),
+        "unsigned_long_int": ("integer", 8 if platform != "llp64" else 4),
+        "long_long_int": ("integer", 8),
+        "unsigned_long_long_int": ("integer", 8),
+        "short_int": ("integer", 2),
+        "unsigned_short_int": ("integer", 2),
     }
     
     return mapping.get(c_type_name)

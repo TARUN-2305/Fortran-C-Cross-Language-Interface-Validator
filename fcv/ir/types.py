@@ -9,6 +9,13 @@ class ScalarType:
     is_value: bool = False     # Fortran VALUE attribute / C pass-by-value
     is_optional: bool = False
     iso_name: str = None       # e.g. "c_long", "c_int"
+    pointer_depth: int = 0     # e.g. 1 for *, 2 for **
+    is_const: bool = False
+    is_unsigned: bool = False
+
+    def __post_init__(self):
+        if self.pointer_depth > 0:
+            self.is_pointer = True
 
 @dataclass
 class ArrayType:
@@ -21,11 +28,19 @@ class ArrayType:
 @dataclass
 class StructType:
     name: str
-    fields: List[Tuple[str, Any]]   # (field_name, type) - Any used for recursive 'AnyType'
+    fields: List[Tuple[str, Any, int]]   # (field_name, type, offset_bytes)
+    size_bytes: int = 0
+    alignment: int = 1
     is_bind_c: bool = False
     is_optional: bool = False
 
-AnyType = Union[ScalarType, ArrayType, StructType]
+@dataclass
+class FunctionPointerType:
+    return_type: Any
+    params: List[Tuple[str, Any]]
+    is_optional: bool = False
+
+AnyType = Union[ScalarType, ArrayType, StructType, FunctionPointerType]
 
 @dataclass
 class InterfaceProc:

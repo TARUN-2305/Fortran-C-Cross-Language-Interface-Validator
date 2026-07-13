@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 from dataclasses import dataclass
 
-from fcv.ir.types import InterfaceProc, ScalarType, ArrayType, StructType, AnyType
+from fcv.ir.types import InterfaceProc, ScalarType, ArrayType, StructType, FunctionPointerType, AnyType
 
 @dataclass
 class Mismatch:
@@ -11,15 +11,35 @@ class Mismatch:
     proc_name: str
     fortran_type: str = ""
     c_type: str = ""
+    f_file: str = ""
+    f_line: int = 0
+    c_file: str = ""
+    c_line: int = 0
 
 class Comparator:
-    def __init__(self):
+    def __init__(self, platform: str = "lp64"):
         self.mismatches: List[Mismatch] = []
+        self.platform = platform
+        self.comparing_return = False
 
     def _add_mismatch(self, category: str, severity: str, msg: str, proc_name: str, ft: str="", ct: str=""):
-        self.mismatches.append(Mismatch(category, severity, msg, proc_name, ft, ct))
+        f_file, f_line, c_file, c_line = "", 0, "", 0
+        for p in getattr(self, 'f_procs', []):
+            if p.name.lower() == proc_name.lower():
+                f_file = p.source_file
+                f_line = p.source_line
+                break
+        for p in getattr(self, 'c_procs', []):
+            if p.name.lower() == proc_name.lower():
+                c_file = p.source_file
+                c_line = p.source_line
+                break
+                
+        if getattr(self, 'comparing_return', False) and category in ["Scalar size mismatch", "Scalar type mismatch", "Type category mismatch", "Pointer depth mismatch"]:
+            category = "Return type mismatch"
+        self.mismatches.append(Mismatch(category, severity, msg, proc_name, ft, ct, f_file, f_line, c_file, c_line))
 
-    def _compare_scalar(self, proc_name: str, param_name: str, ft: ScalarType, ct: ScalarType):
+    def _compare_scalar(self, proc_name: str, param_name: str, ft: ScalarType, ct: ScalarType, is_param: bool = True):
         # Base type check
         if ft.base != ct.base:
             if (ft.base == "character" and ct.base == "integer" and ct.kind_bytes == 1) or \
@@ -41,11 +61,26 @@ class Comparator:
                                f"Parameter '{param_name}' Logical vs non _Bool mapping. Check standard.",
                                proc_name, "logical", "_Bool")
         
+        # Pointer depth mismatch
+        f_depth = ft.pointer_depth
+        if is_param and not ft.is_value:
+            f_depth += 1
+        c_depth = ct.pointer_depth
+        
+        is_f_generic_ptr = getattr(ft, 'iso_name', None) in ["c_ptr", "c_funptr"]
+        is_c_generic_ptr = getattr(ct, 'iso_name', None) == "void"
+        
         # Byte size check
-        if ft.kind_bytes != ct.kind_bytes:
-            self._add_mismatch("Scalar size mismatch", "ERROR",
-                               f"Parameter '{param_name}' size mismatch: Fortran {ft.kind_bytes} bytes vs C {ct.kind_bytes} bytes",
-                               proc_name, str(ft.kind_bytes), str(ct.kind_bytes))
+        skip_size_check = False
+        if f_depth > 0 and c_depth > 0:
+            if is_f_generic_ptr or is_c_generic_ptr:
+                skip_size_check = True
+                
+        if not skip_size_check:
+            if ft.kind_bytes != ct.kind_bytes:
+                self._add_mismatch("Scalar size mismatch", "ERROR",
+                                   f"Parameter '{param_name}' size mismatch: Fortran {ft.kind_bytes} bytes vs C {ct.kind_bytes} bytes",
+                                   proc_name, str(ft.kind_bytes), str(ct.kind_bytes))
 
         # Value vs pointer check
         if ft.is_value and ct.is_pointer and not ft.is_pointer:
@@ -58,46 +93,54 @@ class Comparator:
                                proc_name, "reference", "VALUE")
 
         # Pointer depth mismatch
-        if ft.is_pointer and not ct.is_pointer:
-            self._add_mismatch("Pointer depth mismatch", "ERROR",
-                               f"Parameter '{param_name}' Fortran pointer/c_ptr mapped to C scalar",
-                               proc_name, "c_ptr", "scalar")
-                               
-        if ft.is_pointer and ct.is_pointer and ft.kind_bytes != ct.kind_bytes:
-            # Revert the scalar size error if they are both pointers (since c_ptr is 8 bytes, int* is 8 bytes in 64bit)
-            self.mismatches = [m for m in self.mismatches if not (m.category == "Scalar size mismatch" and m.proc_name == proc_name)]
+        if is_f_generic_ptr and f_depth == 1:
+            if c_depth < 1:
+                self._add_mismatch("Pointer depth mismatch", "ERROR",
+                                   f"Parameter '{param_name}' is Fortran c_ptr but C expects a non-pointer scalar",
+                                   proc_name, "c_ptr", "scalar")
+        else:
+            if f_depth != c_depth:
+                self._add_mismatch("Pointer depth mismatch", "ERROR",
+                                   f"Parameter '{param_name}' effective pointer depth mismatch: Fortran {f_depth} vs C {c_depth}",
+                                   proc_name, str(f_depth), str(c_depth))
                                
         if getattr(ft, 'iso_name', None) == "c_funptr" and (not ct.is_pointer or ct.base != "integer"):
             self._add_mismatch("PLATFORM_FUNPTR_ALIGN", "WARNING", "c_funptr must map to C function pointer", proc_name)
             
         if hasattr(ft, 'is_optional') and ft.is_optional:
             self._add_mismatch("OPTIONAL_NULL", "WARNING",
-                               f"Parameter '{param_name}' is OPTIONAL in Fortran. C must check for NULL.",
+                               f"Parameter '{param_name}' is OPTIONAL in Fortran. C must expect NULL pointer.",
                                proc_name)
                                
-        if getattr(ft, 'iso_name', None) == "c_long":
+        if getattr(ft, 'iso_name', None) == "c_long" and self.platform == "lp64":
             self._add_mismatch("PLATFORM_DEPENDENT", "WARNING", "c_long is platform dependent", proc_name)
             
         if getattr(ft, 'iso_name', None) == "c_long_double":
             self._add_mismatch("LONG_DOUBLE_PORTABILITY", "WARNING", "REAL(c_long_double) is non-portable", proc_name)
 
-    def _compare_types(self, proc_name: str, param_name: str, ft: AnyType, ct: AnyType):
+        # Unsigned mismatch warning
+        if ft.base == "integer" and ct.base == "integer":
+            if getattr(ft, 'is_unsigned', False) != getattr(ct, 'is_unsigned', False):
+                self._add_mismatch("Sign mismatch", "WARNING",
+                                   f"Parameter '{param_name}' signedness mismatch: Fortran {ft.is_unsigned} vs C {ct.is_unsigned}",
+                                   proc_name)
+
+    def _compare_types(self, proc_name: str, param_name: str, ft: AnyType, ct: AnyType, is_param: bool = True):
         if isinstance(ft, ScalarType) and isinstance(ct, ScalarType):
-            self._compare_scalar(proc_name, param_name, ft, ct)
+            self._compare_scalar(proc_name, param_name, ft, ct, is_param)
         elif isinstance(ft, ArrayType) and isinstance(ct, ArrayType):
-            if proc_name == "mat_scale" or ft.rank >= 2:
+            if ft.rank >= 2:
                 self._add_mismatch("COLUMN_ROW_MAJOR", "WARNING", "Fortran 2D array is column-major, C is row-major", proc_name)
-            self._compare_types(proc_name, f"{param_name}[]", ft.element, ct.element)
+            self._compare_types(proc_name, f"{param_name}[]", ft.element, ct.element, is_param)
         elif isinstance(ft, ArrayType) and isinstance(ct, ScalarType):
             if ct.is_pointer:
                 if getattr(ft, 'is_assumed_shape', False):
                     self._add_mismatch("ARRAY_DESCRIPTOR", "ERROR", "Fortran assumed-shape passes CFI_cdesc_t", proc_name)
                 elif ft.element.base == "character":
                     self._add_mismatch("CHAR_NUL_TERMINATION", "WARNING", "Fortran strings are not NUL terminated", proc_name)
-                # Fortran array to C pointer is fine, check element
-                self._compare_types(proc_name, f"{param_name}[]", ft.element, ct)
+                self._compare_types(proc_name, f"{param_name}[]", ft.element, ct, is_param)
             else:
-                 if proc_name == "mat_scale":
+                 if ft.rank >= 2:
                      self._add_mismatch("COLUMN_ROW_MAJOR", "WARNING", "Fortran 2D array is column-major", proc_name)
                  else:
                      self._add_mismatch("Array rank mismatch", "ERROR",
@@ -110,25 +153,42 @@ class Comparator:
                 self._add_mismatch("NON_INTEROPERABLE_TYPE", "ERROR",
                                f"Type '{ft.name}' lacks BIND(C) attribute", proc_name)
             
+            # Compare total sizes
+            if ft.size_bytes != ct.size_bytes:
+                self._add_mismatch("Struct size mismatch", "ERROR",
+                                   f"Struct '{ft.name}' total size mismatch: Fortran {ft.size_bytes} bytes vs C {ct.size_bytes} bytes",
+                                   proc_name, str(ft.size_bytes), str(ct.size_bytes))
+                
             if len(ft.fields) != len(ct.fields):
                 self._add_mismatch("Struct field count mismatch", "ERROR",
                                f"Struct '{ft.name}' has {len(ft.fields)} fields in Fortran but {len(ct.fields)} in C",
                                proc_name, str(len(ft.fields)), str(len(ct.fields)))
                 return
             
-            for (f_fname, f_ftype), (c_fname, c_ftype) in zip(ft.fields, ct.fields):
-                self._compare_types(proc_name, f"{param_name}.{f_fname}", f_ftype, c_ftype)
+            for (f_fname, f_ftype, f_offset), (c_fname, c_ftype, c_offset) in zip(ft.fields, ct.fields):
+                if f_offset != c_offset:
+                    self._add_mismatch("FIELD_OFFSET", "ERROR",
+                                       f"Struct '{ft.name}' field '{f_fname}' offset mismatch: Fortran {f_offset} bytes vs C {c_offset} bytes (alignment padding mismatch)",
+                                       proc_name)
+                if f_fname.lower() != c_fname.lower():
+                    self._add_mismatch("FIELD_ORDER", "ERROR",
+                                       f"Field order/name mismatch: Fortran field '{f_fname}' vs C field '{c_fname}'",
+                                       proc_name)
+                self._compare_types(proc_name, f"{param_name}.{f_fname}", f_ftype, c_ftype, is_param=False)
         elif isinstance(ft, ScalarType) and ft.base == "complex" and isinstance(ct, StructType):
-            if proc_name == "apply_phase":
-                self._add_mismatch("COMPLEX_STRUCT_ABI", "WARNING", "Complex passed as struct", proc_name)
-            else:
-                self._add_mismatch("Complex ABI mismatch", "ERROR",
-                               f"Parameter '{param_name}' is Fortran COMPLEX but C uses a struct instead of _Complex",
-                               proc_name, "complex", "struct")
+            self._add_mismatch("COMPLEX_STRUCT_ABI", "WARNING", "Complex passed as struct", proc_name)
         elif getattr(ft, 'iso_name', None) == "c_funptr":
-            if ct is None:
-                self._add_mismatch("PLATFORM_FUNPTR_ALIGN", "WARNING", "c_funptr alignment trap on Apple M1", proc_name)
-            else:
+            self._add_mismatch("PLATFORM_FUNPTR_ALIGN", "WARNING", "c_funptr alignment trap on Apple M1", proc_name)
+            if isinstance(ct, FunctionPointerType):
+                # Compare callback signature
+                cb_procs = [p for p in getattr(self, 'f_procs', []) if p.name.lower() not in [cp.name.lower() for cp in getattr(self, 'c_procs', [])]]
+                if cb_procs:
+                    cb_proc = cb_procs[0]
+                    self._compare_types(proc_name, f"{param_name}.callback_return", cb_proc.return_type, ct.return_type)
+                    for i, (cb_pname, cb_ptype) in enumerate(cb_proc.params):
+                        if i < len(ct.params):
+                            self._compare_types(proc_name, f"{param_name}.callback_param{i}", cb_ptype, ct.params[i][1])
+            elif ct is not None:
                 self._add_mismatch("FUNPTR_VS_PTR", "ERROR", "c_funptr must map to C function pointer", proc_name)
         else:
             self._add_mismatch("Type category mismatch", "ERROR",
@@ -137,6 +197,8 @@ class Comparator:
 
 
     def compare(self, f_procs: List[InterfaceProc], c_procs: List[InterfaceProc]) -> List[Mismatch]:
+        self.f_procs = f_procs
+        self.c_procs = c_procs
         c_proc_map = {p.name.lower(): p for p in c_procs}
         f_proc_map = {p.name.lower(): p for p in f_procs}
 
@@ -185,7 +247,9 @@ class Comparator:
                                    f"Function vs Subroutine mismatch: Fortran returns {f_ret}, C returns {c_ret}",
                                    f_proc.name, f_ret, c_ret)
             elif f_proc.return_type and c_proc.return_type:
-                self._compare_types(f_proc.name, "return_value", f_proc.return_type, c_proc.return_type)
+                self.comparing_return = True
+                self._compare_types(f_proc.name, "return_value", f_proc.return_type, c_proc.return_type, is_param=False)
+                self.comparing_return = False
 
         for name, c_proc in c_proc_map.items():
             if name not in f_proc_map:
@@ -195,5 +259,5 @@ class Comparator:
 
         return self.mismatches
 
-def compare_interfaces(f_procs: List[InterfaceProc], c_procs: List[InterfaceProc]) -> List[Mismatch]:
-    return Comparator().compare(f_procs, c_procs)
+def compare_interfaces(f_procs: List[InterfaceProc], c_procs: List[InterfaceProc], platform: str = "lp64") -> List[Mismatch]:
+    return Comparator(platform).compare(f_procs, c_procs)

@@ -18,7 +18,7 @@ def cli():
 @click.argument('c_header', type=click.Path(exists=True))
 @click.option('--format', type=click.Choice(['text', 'json', 'sarif']), default='text', help='Output format')
 @click.option('--severity', type=click.Choice(['error', 'warning', 'info']), default='warning', help='Minimum severity to report')
-@click.option('--platform', type=click.Choice(['lp64', 'ilp64']), default='lp64', help='Integer size model')
+@click.option('--platform', type=click.Choice(['lp64', 'ilp64', 'llp64']), default='lp64', help='Integer size model')
 @click.option('--use-flang', is_flag=True, help='Use Flang for parsing')
 @click.option('--no-color', is_flag=True, help='Disable terminal colors')
 def validate(fortran_file, c_header, format, severity, platform, use_flang, no_color):
@@ -31,7 +31,7 @@ def validate(fortran_file, c_header, format, severity, platform, use_flang, no_c
         f_procs = parse_fortran_file(fortran_file, platform)
     c_procs = parse_c_header(c_header, platform)
     
-    mismatches = compare_interfaces(f_procs, c_procs)
+    mismatches = compare_interfaces(f_procs, c_procs, platform)
     mismatches = run_abi_checks(f_procs, c_procs, mismatches)
     
     # Filter by severity

@@ -41,13 +41,12 @@ fcv validate fcv/tests/hard_pairs/TC-A-003_Correct_BIND_C_version_of_TC_A/interf
 
 echo ""
 echo "=================================================="
-echo "DEMO 4: Running full Pytest suite (68 tests)"
+echo "DEMO 4: Running full Pytest suite (69 tests)"
 echo "=================================================="
 pytest fcv/tests/ -v --tb=short
 
 echo ""
 echo "=================================================="
 echo "DEMO COMPLETE!"
-echo "Refer to DESIGN.md, IMPLEMENTATION.md and EVALUATION.md"
-echo "for comprehensive project details."
+echo "Refer to README.md for comprehensive project details."
 echo "=================================================="
