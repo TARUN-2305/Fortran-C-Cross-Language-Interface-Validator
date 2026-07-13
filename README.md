@@ -139,3 +139,59 @@ For a deep dive into the design and evaluation of the project, please refer to t
 - **[docs/type_mapping_reference.md](docs/type_mapping_reference.md)**: Tabulates all supported type mappings across Fortran ISO bindings and C standard types.
 - **[docs/lapack_report.md](docs/lapack_report.md)**: Statically generated cross-language validation report on Reference-LAPACK library.
 
+---
+
+## 🎓 Hands-On Tutorial: Finding and Fixing Silent ABI Mismatches
+
+This self-contained tutorial provides a step-by-step example of compiling a mixed Fortran-C program with a hidden ABI flaw, watching it crash at runtime, using `fcv` to diagnose it, and running the corrected version.
+
+All source code files for this tutorial are located in the `demo/classroom_demo/` directory.
+
+### 🛠️ Step 1: Activate the Virtual Environment
+Activate the environment where `fcv` is installed to enable the single-word command:
+```bash
+source .venv/bin/activate
+```
+
+### 💥 Step 2: Compile & Run the Buggy Code (Watch the Crash!)
+In this buggy version, C passes arguments by value (`double`), but Fortran expects reference pointers (because the `VALUE` attribute is missing).
+
+```bash
+# 1. Compile the Fortran subroutine
+gfortran -c demo/classroom_demo/force_solver_buggy.f90 -o demo/classroom_demo/force_solver_buggy.o
+
+# 2. Compile the C caller and link them together
+gcc demo/classroom_demo/main_buggy.c demo/classroom_demo/force_solver_buggy.o -o demo/classroom_demo/main_buggy -lgfortran
+
+# 3. Run the binary (expected: Segmentation Fault)
+./demo/classroom_demo/main_buggy
+```
+
+### 🔍 Step 3: Run the `fcv` Tool on the Buggy Code
+Use the validator to identify why the program crashed:
+```bash
+fcv validate demo/classroom_demo/force_solver_buggy.f90 demo/classroom_demo/force_solver_buggy.h --use-flang
+```
+This will report a `Value/reference mismatch` on parameters `mass` and `acceleration`.
+
+### 🛠️ Step 4: Compile & Run the Fixed Code (Watch it Work!)
+The corrected version uses `BIND(C)` in Fortran and explicitly declares the `VALUE` attribute to match C's parameter passing conventions.
+
+```bash
+# 1. Compile the fixed Fortran subroutine
+gfortran -c demo/classroom_demo/force_solver_fixed.f90 -o demo/classroom_demo/force_solver_fixed.o
+
+# 2. Compile the fixed C caller and link them
+gcc demo/classroom_demo/main_fixed.c demo/classroom_demo/force_solver_fixed.o -o demo/classroom_demo/main_fixed -lgfortran
+
+# 3. Run the binary (expected: Result force: 49.000000)
+./demo/classroom_demo/main_fixed
+```
+
+### 🔍 Step 5: Run the `fcv` Tool on the Fixed Code
+Verify that the interface is now 100% compliant:
+```bash
+fcv validate demo/classroom_demo/force_solver_fixed.f90 demo/classroom_demo/force_solver_fixed.h --use-flang
+```
+This will output `No mismatches found! The interfaces are binary-compatible.`.
+
