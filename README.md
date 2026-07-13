@@ -137,9 +137,7 @@ For a deep dive into the design and evaluation of the project, please refer to t
 - **[docs/design.md](docs/design.md)**: Details the parser architecture, language-neutral IR, and alternative design decisions.
 - **[docs/user_guide.md](docs/user_guide.md)**: Comprehensive CLI usage guide with full command-line help outputs and syntax parameters.
 - **[docs/type_mapping_reference.md](docs/type_mapping_reference.md)**: Tabulates all supported type mappings across Fortran ISO bindings and C standard types.
-- **[docs/lapack_report.md](docs/lapack_report.md)**: Statically generated cross-language validation report on Reference-LAPACK library.
-
----
+- **[docs/lapack_report.md](docs/lapack_report.md)**: Statically generated cross-language validation report
 
 ## 🎓 Hands-On Tutorial: Finding and Fixing Silent ABI Mismatches
 
@@ -147,51 +145,148 @@ This self-contained tutorial provides a step-by-step example of compiling a mixe
 
 All source code files for this tutorial are located in the `demo/classroom_demo/` directory.
 
-### 🛠️ Step 1: Activate the Virtual Environment
-Activate the environment where `fcv` is installed to enable the single-word command:
+### 1. The Buggy Implementation
+
+#### Buggy Fortran Code ([force_solver_buggy.f90](demo/classroom_demo/force_solver_buggy.f90))
+```fortran
+subroutine calculate_force(mass, acceleration, force)
+    double precision, intent(in) :: mass
+    double precision, intent(in) :: acceleration
+    double precision, intent(out) :: force
+
+    force = mass * acceleration
+end subroutine calculate_force
+```
+
+#### Buggy C Header ([force_solver_buggy.h](demo/classroom_demo/force_solver_buggy.h))
+```c
+void calculate_force_(double mass, double acceleration, double* force);
+```
+
+#### Buggy C Main Caller ([main_buggy.c](demo/classroom_demo/main_buggy.c))
+```c
+#include <stdio.h>
+
+extern void calculate_force_(double mass, double acceleration, double* force);
+
+int main() {
+    double mass = 5.0;
+    double acceleration = 9.8;
+    double force = 0.0;
+
+    printf("Calling calculate_force_ with mass=%f, acceleration=%f...\n", mass, acceleration);
+    fflush(stdout);
+
+    calculate_force_(mass, acceleration, &force);
+
+    printf("Result force: %f\n", force);
+    return 0;
+}
+```
+
+---
+
+### 2. What Was Wrong & What Was Happening?
+
+When compiling and executing this buggy program, it crashes immediately with a **Segmentation Fault (core dumped)**:
+
+```bash
+gfortran -c demo/classroom_demo/force_solver_buggy.f90 -o demo/classroom_demo/force_solver_buggy.o
+gcc demo/classroom_demo/main_buggy.c demo/classroom_demo/force_solver_buggy.o -o demo/classroom_demo/main_buggy -lgfortran
+./demo/classroom_demo/main_buggy
+# Output: Segmentation fault (core dumped)
+```
+
+#### Low-Level Binary Explanation:
+* **Value vs. Reference Mismatch**: 
+  - *The Bug:* In C, the arguments `mass` and `acceleration` are passed **by value** (`double`), which loads the raw floating-point bits (for `5.0` and `9.8`) directly into CPU registers or stack slots. However, on the Fortran side, legacy arguments are passed **by reference** (expecting pointers).
+  - *The Consequence:* When Fortran attempts to compute `force = mass * acceleration`, it interprets the registers containing `5.0` and `9.8` as **64-bit memory addresses** (pointers). It tries to dereference these addresses, leading to a memory access violation (accessing non-existent memory addresses like `0x4014000000000000`), which causes an immediate hardware-level **Segmentation Fault**.
+* **Symbol Name Mangling**:
+  - *The Bug:* The legacy Fortran subroutine compiles into the binary symbol `calculate_force_` (appended trailing underscore). C has to manually reference this mangled name, violating portability rules.
+
+---
+
+### 3. Running the `fcv` Tool on the Buggy Code
+
+To diagnose these silent mismatches before compiling or linking, activate the environment and validate:
 ```bash
 source .venv/bin/activate
-```
-
-### 💥 Step 2: Compile & Run the Buggy Code (Watch the Crash!)
-In this buggy version, C passes arguments by value (`double`), but Fortran expects reference pointers (because the `VALUE` attribute is missing).
-
-```bash
-# 1. Compile the Fortran subroutine
-gfortran -c demo/classroom_demo/force_solver_buggy.f90 -o demo/classroom_demo/force_solver_buggy.o
-
-# 2. Compile the C caller and link them together
-gcc demo/classroom_demo/main_buggy.c demo/classroom_demo/force_solver_buggy.o -o demo/classroom_demo/main_buggy -lgfortran
-
-# 3. Run the binary (expected: Segmentation Fault)
-./demo/classroom_demo/main_buggy
-```
-
-### 🔍 Step 3: Run the `fcv` Tool on the Buggy Code
-Use the validator to identify why the program crashed:
-```bash
 fcv validate demo/classroom_demo/force_solver_buggy.f90 demo/classroom_demo/force_solver_buggy.h --use-flang
 ```
-This will report a `Value/reference mismatch` on parameters `mass` and `acceleration`.
 
-### 🛠️ Step 4: Compile & Run the Fixed Code (Watch it Work!)
-The corrected version uses `BIND(C)` in Fortran and explicitly declares the `VALUE` attribute to match C's parameter passing conventions.
+The tool will parse the ASTs and immediately report the mismatches:
+* **`Value/reference mismatch`**: Flags that `mass` and `acceleration` are passed by reference in Fortran but by value in C.
+* **`Pointer depth mismatch`**: Flags that Fortran expects 1 pointer level whereas C provides 0.
 
-```bash
-# 1. Compile the fixed Fortran subroutine
-gfortran -c demo/classroom_demo/force_solver_fixed.f90 -o demo/classroom_demo/force_solver_fixed.o
+---
 
-# 2. Compile the fixed C caller and link them
-gcc demo/classroom_demo/main_fixed.c demo/classroom_demo/force_solver_fixed.o -o demo/classroom_demo/main_fixed -lgfortran
+### 4. Moving Forward: The Fixed Implementation
 
-# 3. Run the binary (expected: Result force: 49.000000)
-./demo/classroom_demo/main_fixed
+To fix the ABI violations, we standardise the interfaces utilizing modern Fortran-C interoperability specs (`iso_c_binding` and `BIND(C)`):
+
+#### Fixed Fortran Code ([force_solver_fixed.f90](demo/classroom_demo/force_solver_fixed.f90))
+```fortran
+subroutine calculate_force(mass, acceleration, force) bind(C, name="calculate_force")
+    use iso_c_binding
+    real(c_double), value, intent(in) :: mass
+    real(c_double), value, intent(in) :: acceleration
+    real(c_double), intent(out) :: force
+
+    force = mass * acceleration
+end subroutine calculate_force
 ```
 
-### 🔍 Step 5: Run the `fcv` Tool on the Fixed Code
-Verify that the interface is now 100% compliant:
+#### Fixed C Header ([force_solver_fixed.h](demo/classroom_demo/force_solver_fixed.h))
+```c
+void calculate_force(double mass, double acceleration, double* force);
+```
+
+#### Fixed C Main Caller ([main_fixed.c](demo/classroom_demo/main_fixed.c))
+```c
+#include <stdio.h>
+
+void calculate_force(double mass, double acceleration, double* force);
+
+int main() {
+    double mass = 5.0;
+    double acceleration = 9.8;
+    double force = 0.0;
+
+    printf("Calling calculate_force with mass=%f, acceleration=%f...\n", mass, acceleration);
+    fflush(stdout);
+
+    calculate_force(mass, acceleration, &force);
+
+    printf("Result force: %f (Expected: 49.0)\n", force);
+    return 0;
+}
+```
+
+---
+
+### 5. Compiling and Verifying the Corrected Version
+
+#### Compile and run the fixed code:
+```bash
+gfortran -c demo/classroom_demo/force_solver_fixed.f90 -o demo/classroom_demo/force_solver_fixed.o
+gcc demo/classroom_demo/main_fixed.c demo/classroom_demo/force_solver_fixed.o -o demo/classroom_demo/main_fixed -lgfortran
+./demo/classroom_demo/main_fixed
+# Output:
+# Calling calculate_force with mass=5.000000, acceleration=9.800000...
+# Result force: 49.000000 (Expected: 49.0)
+```
+
+#### Verify with `fcv`:
 ```bash
 fcv validate demo/classroom_demo/force_solver_fixed.f90 demo/classroom_demo/force_solver_fixed.h --use-flang
+# Output:
+# No mismatches found! The interfaces are binary-compatible.
 ```
-This will output `No mismatches found! The interfaces are binary-compatible.`.
 
+---
+
+### 📸 Terminal Execution History
+
+Below is a complete recording of the terminal execution showing the buggy crash, detection of the errors by `fcv`, compiling the fixed version, and successfully computing the result:
+
+![Classroom Demo Terminal Execution](demo/classroom_demo/classroom_demo_screenshot.png)
