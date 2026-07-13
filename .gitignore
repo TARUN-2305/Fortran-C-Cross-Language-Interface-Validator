@@ -16,3 +16,4 @@ test.h
 pat.txt
 demo/lapack_temp/
 scratch/
+*.mod

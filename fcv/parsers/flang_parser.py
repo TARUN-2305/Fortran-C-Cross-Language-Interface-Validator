@@ -2,6 +2,7 @@ import subprocess
 import os
 import re
 import sys
+import tempfile
 from typing import List, Optional, Tuple, Dict, Any
 
 from fcv.ir.types import InterfaceProc, ScalarType, ArrayType, StructType, AnyType
@@ -10,17 +11,23 @@ from fcv.parsers.fortran_parser import FortranParser, parse_fortran_file
 from fcv.parsers.gfortran_parser import GfortranParser, _gfortran_binary
 
 
+def _flang_binary() -> Optional[str]:
+    """Return path to flang executable if available, else None."""
+    for name in ("flang-new", "flang-21", "flang-20", "flang-19", "flang-18", "flang-17", "flang"):
+        try:
+            result = subprocess.run(["which", name], capture_output=True, text=True)
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except FileNotFoundError:
+            pass
+    return None
+
+
 def fortran_parser_backend_name() -> str:
     """Return a human-readable name for the Fortran parser backend that will be used."""
-    try:
-        result = subprocess.run(
-            ["flang-new", "--version"],
-            capture_output=True, text=True, timeout=5
-        )
-        if result.returncode == 0:
-            return "flang-new (LLVM Flang compiler frontend)"
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
+    flang = _flang_binary()
+    if flang:
+        return f"flang ({flang}) LLVM compiler frontend"
     if _gfortran_binary():
         return f"gfortran ({_gfortran_binary()}) compiler frontend"
     return "regex-based Fortran parser (no compiler available — install gfortran or flang-new for compiler-grade accuracy)"
@@ -33,14 +40,16 @@ class FlangASTNode:
 
     def find_all(self, name: str) -> List['FlangASTNode']:
         result = []
-        if self.name.lower() == name.lower():
+        parts = [p.strip().lower() for p in self.name.split("->")]
+        if name.lower() in parts:
             result.append(self)
         for child in self.children:
             result.extend(child.find_all(name))
         return result
 
     def find_first(self, name: str) -> Optional['FlangASTNode']:
-        if self.name.lower() == name.lower():
+        parts = [p.strip().lower() for p in self.name.split("->")]
+        if name.lower() in parts:
             return self
         for child in self.children:
             found = child.find_first(name)
@@ -53,31 +62,70 @@ class FlangParser:
         self.platform = platform
 
     def parse_file(self, filepath: str, raise_on_error: bool = False) -> List[InterfaceProc]:
-        # Attempt to run flang-new to get the parse tree
-        try:
-            result = subprocess.run(
-                ["flang-new", "-fc1", "-fdebug-dump-parse-tree", filepath],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            output = result.stdout
-            return self._parse_flang_ast(output, filepath)
-        except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        # Read file content to see if it needs wrapping to be a valid Fortran program unit
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Clean comments and whitespace to check first statement
+        content_clean = ""
+        for line in content.splitlines():
+            line_strip = line.strip()
+            if line_strip and not line_strip.startswith("!"):
+                content_clean += line_strip.lower() + "\n"
+
+        needs_wrap = False
+        if content_clean.strip().startswith("interface"):
+            needs_wrap = True
+
+        # Attempt to run flang to get the parse tree
+        flang = _flang_binary()
+        if flang:
+            temp_file = None
+            try:
+                if needs_wrap:
+                    ext = os.path.splitext(filepath)[1] or ".f90"
+                    fd, temp_path = tempfile.mkstemp(suffix=ext)
+                    with os.fdopen(fd, 'w', encoding='utf-8') as tf:
+                        tf.write(f"module temp_wrapper_mod\n  use iso_c_binding\n{content}\nend module temp_wrapper_mod")
+                    target_path = temp_path
+                    temp_file = temp_path
+                else:
+                    target_path = filepath
+
+                result = subprocess.run(
+                    [flang, "-fc1", "-fdebug-dump-parse-tree", target_path],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                output = result.stdout
+                return self._parse_flang_ast(output, filepath)
+            except subprocess.CalledProcessError as e:
+                if raise_on_error:
+                    raise RuntimeError(
+                        f"Error: flang compiler failed to parse {filepath}.\nDetails: {e.stderr}"
+                    )
+            finally:
+                if temp_file and os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except Exception:
+                        pass
+        else:
             if raise_on_error:
                 raise RuntimeError(
-                    f"Error: flang-new is not installed or failed to run, "
-                    f"but --use-flang was explicitly requested.\n"
-                    f"Please make sure flang-new is available in your PATH.\nDetails: {e}"
+                    f"Error: flang compiler is not installed or available in your PATH, "
+                    f"but --use-flang was explicitly requested."
                 )
-            # Fallback 1: gfortran (real compiler, better than regex)
-            gfortran = GfortranParser(self.platform)
-            if gfortran.available:
-                print(
-                    "INFO: flang-new not found. Using gfortran compiler frontend.",
-                    file=sys.stderr
-                )
-                return gfortran.parse_file(filepath)
+
+        # Fallback 1: gfortran (real compiler, better than regex)
+        gfortran = GfortranParser(self.platform)
+        if gfortran.available:
+            print(
+                "INFO: flang not found. Using gfortran compiler frontend.",
+                file=sys.stderr
+            )
+            return gfortran.parse_file(filepath)
             # Fallback 2: regex parser
             print(
                 "WARNING: No Fortran compiler (flang-new or gfortran) found in PATH. "
@@ -93,8 +141,13 @@ class FlangParser:
         root = self._build_ast_tree(ast_text)
         procs = []
 
-        # Find SubroutineSubprogram and FunctionSubprogram nodes
-        subprogram_nodes = root.find_all("SubroutineSubprogram") + root.find_all("FunctionSubprogram")
+        # Find SubroutineSubprogram, FunctionSubprogram, Subroutine, and Function nodes
+        subprogram_nodes = (
+            root.find_all("SubroutineSubprogram") + 
+            root.find_all("FunctionSubprogram") +
+            root.find_all("Subroutine") +
+            root.find_all("Function")
+        )
 
         for sub_node in subprogram_nodes:
             proc = self._extract_procedure(sub_node, filepath)
@@ -109,10 +162,13 @@ class FlangParser:
         stack = [(-1, root)]
         
         for line in lines:
-            if not line.strip():
+            if not line.strip() or "Flang: parse tree dump" in line:
                 continue
-            leading_spaces = len(line) - len(line.lstrip())
-            content = line.strip()
+            
+            depth = line.count("|")
+            content = line.replace("|", "").strip()
+            if not content:
+                continue
             
             if "=" in content:
                 name, val = content.split("=", 1)
@@ -120,13 +176,13 @@ class FlangParser:
             else:
                 node = FlangASTNode(content)
                 
-            while stack and stack[-1][0] >= leading_spaces:
+            while stack and stack[-1][0] >= depth:
                 stack.pop()
                 
             if stack:
                 stack[-1][1].children.append(node)
                 
-            stack.append((leading_spaces, node))
+            stack.append((depth, node))
             
         return root
 
@@ -151,7 +207,7 @@ class FlangParser:
             if char_expr:
                 binding_name = char_expr.value.replace("'", "").strip()
 
-        is_function = (node.name == "FunctionSubprogram")
+        is_function = (node.name in ["FunctionSubprogram", "Function"])
 
         # Collect dummy args
         args_order = []
@@ -180,26 +236,50 @@ class FlangParser:
             iso_name = None
 
             # Check TypeSpec kind
-            int_spec = type_spec_node.find_first("IntegerTypeSpec")
-            real_spec = type_spec_node.find_first("RealTypeSpec")
-            complex_spec = type_spec_node.find_first("ComplexTypeSpec")
-            logical_spec = type_spec_node.find_first("LogicalTypeSpec")
-            char_spec = type_spec_node.find_first("CharacterTypeSpec")
+            int_spec = type_spec_node.find_first("IntegerTypeSpec") or type_spec_node.find_first("Integer")
+            real_spec = type_spec_node.find_first("RealTypeSpec") or type_spec_node.find_first("Real")
+            complex_spec = type_spec_node.find_first("ComplexTypeSpec") or type_spec_node.find_first("Complex")
+            logical_spec = type_spec_node.find_first("LogicalTypeSpec") or type_spec_node.find_first("Logical")
+            char_spec = type_spec_node.find_first("CharacterTypeSpec") or type_spec_node.find_first("Character")
+
+            double_spec = type_spec_node.find_first("DoublePrecision")
+            double_complex_spec = type_spec_node.find_first("DoubleComplex")
+
+            pointer_depth = 0
 
             if int_spec:
                 base_type = "integer"
             elif real_spec:
                 base_type = "real"
+            elif double_spec:
+                base_type = "real"
+                kind_bytes = 8
             elif complex_spec:
                 base_type = "complex"
+                kind_bytes = 8
+            elif double_complex_spec:
+                base_type = "complex"
+                kind_bytes = 16
             elif logical_spec:
                 base_type = "logical"
             elif char_spec:
                 base_type = "character"
                 kind_bytes = 1
+            else:
+                derived_spec = type_spec_node.find_first("DerivedTypeSpec")
+                if derived_spec:
+                    name_node = derived_spec.find_first("Name")
+                    if name_node:
+                        iso_name = name_node.value.replace("'", "").strip()
+                        if iso_name in ["c_ptr", "c_funptr"]:
+                            base_type = "integer"
+                            kind_bytes = 8
+                            pointer_depth = 1
+                        else:
+                            base_type = "struct"
 
             # Check if there is a Kind expression
-            kind_node = type_spec_node.find_first("Kind")
+            kind_node = type_spec_node.find_first("KindSelector") or type_spec_node.find_first("Kind") or type_spec_node.find_first("CharSelector")
             if kind_node:
                 # Value could be c_int, c_double, etc.
                 val_node = kind_node.find_first("Name") or kind_node.find_first("Constant")
@@ -210,11 +290,11 @@ class FlangParser:
                         base_type, kind_bytes = iso_info
 
             # 2. Parse AttrSpecs (Value, Intent, Pointer, Optional, Dimension)
-            attrs = [a.name.lower() for a in decl.find_all("AttrSpec")]
-            is_value = "value" in attrs
-            is_pointer = "pointer" in attrs
-            is_optional = "optional" in attrs
-            is_const = any("intent(in)" in a or ("in" in a and "out" not in a) for a in attrs)
+            attr_nodes = decl.find_all("AttrSpec")
+            is_value = any("value" in a.name.lower() for a in attr_nodes)
+            is_pointer = any("pointer" in a.name.lower() for a in attr_nodes)
+            is_optional = any("optional" in a.name.lower() for a in attr_nodes)
+            is_const = any("intent(in)" in a.name.lower() or ("in" in a.name.lower() and "out" not in a.name.lower()) for a in attr_nodes)
             
             # 3. EntityDecl representing variables
             entities = decl.find_all("EntityDecl")
@@ -225,27 +305,42 @@ class FlangParser:
                 ent_name = ent_name_node.value.replace("'", "").strip()
 
                 # Determine if it is an array
-                is_array = "dimension" in attrs
+                is_array = any("dimension" in a.name.lower() or "arrayspec" in a.name.lower() for a in attr_nodes)
                 rank = 1
                 is_assumed = False
-                array_spec = ent.find_first("ArraySpec")
+                array_spec = ent.find_first("ArraySpec") or decl.find_first("ArraySpec")
                 if array_spec:
                     is_array = True
-                    # Rank is determined by number of dimensions
-                    rank = len(array_spec.find_all("Dimension")) or 1
-                    is_assumed = ":" in str(array_spec.find_all("Dimension"))
+                    rank_node = array_spec.find_first("int")
+                    if rank_node:
+                        val = rank_node.value.replace("'", "").strip()
+                        if val.isdigit():
+                            rank = int(val)
+                        else:
+                            rank = len(array_spec.find_all("Dimension")) or 1
+                    else:
+                        rank = len(array_spec.find_all("Dimension")) or 1
+                    is_assumed = ":" in str(array_spec.find_all("Dimension")) or "deferred" in array_spec.name.lower()
 
                 # Set parameters
-                param_type = ScalarType(
-                    base=base_type,
-                    kind_bytes=kind_bytes,
-                    is_pointer=is_pointer,
-                    pointer_depth=1 if is_pointer else 0,
-                    is_value=is_value,
-                    is_optional=is_optional,
-                    iso_name=iso_name,
-                    is_const=is_const
-                )
+                if base_type == "struct":
+                    param_type = StructType(
+                        name=iso_name,
+                        fields=[],
+                        is_bind_c=is_bind_c,
+                        is_optional=is_optional
+                    )
+                else:
+                    param_type = ScalarType(
+                        base=base_type,
+                        kind_bytes=kind_bytes,
+                        is_pointer=is_pointer or pointer_depth > 0,
+                        pointer_depth=1 if is_pointer else pointer_depth,
+                        is_value=is_value,
+                        is_optional=is_optional,
+                        iso_name=iso_name,
+                        is_const=is_const
+                    )
 
                 if is_array:
                     args_types[ent_name] = ArrayType(
@@ -259,7 +354,8 @@ class FlangParser:
                     args_types[ent_name] = param_type
 
                 # Check character length hidden argument
-                if base_type == "character" and not is_bind_c:
+                is_star = (type_spec_node.find_first("Star") is not None)
+                if base_type == "character" and (is_star or not is_bind_c):
                     has_hidden_strlen = True
 
         params = []

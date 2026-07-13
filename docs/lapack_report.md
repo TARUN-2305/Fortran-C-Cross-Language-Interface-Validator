@@ -8,8 +8,8 @@ This report was generated using **FCValidator** powered by actual compiler front
 
 ## Validation Commands
 ```bash
-python -m fcv.cli validate dgetrf.f lapack.h --cflags "-Dlapack_int=int -Dlapack_logical=int -DLAPACK_GLOBAL(name,NAME)=name##_"
-python -m fcv.cli validate dgemm.f lapack.h --cflags "-Dlapack_int=int -Dlapack_logical=int -DLAPACK_GLOBAL(name,NAME)=name##_"
+python -m fcv.cli validate dgetrf.f lapack.h --c-suffix "_" --cflags "-Dlapack_int=int -Dlapack_logical=int -DLAPACK_GLOBAL(name,NAME)=name##_"
+python -m fcv.cli validate dgemm.f lapack.h --c-suffix "_" --cflags "-Dlapack_int=int -Dlapack_logical=int -DLAPACK_GLOBAL(name,NAME)=name##_"
 ```
 
 ## Validation Output for dgetrf.f
@@ -21,8 +21,8 @@ python -m fcv.cli validate dgemm.f lapack.h --cflags "-Dlapack_int=int -Dlapack_
 ┃          ┃                ┃                ┃ (Fortran <->   ┃                ┃
 ┃ Severity ┃ Procedure      ┃ Category       ┃ C)             ┃ Message        ┃
 ┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━┩
-│ ERROR    │ dgetrf_        │ PARAM_ORDER    │ dgetrf.f:3 <-> │ Parameter name │
-│          │                │                │ lapack.h:3969  │ swap: a vs A   │
+│ ERROR    │ dgetrf         │ PARAM_ORDER    │ dgetrf.f:0 <-> │ Parameter name │
+│          │                │                │ ?              │ swap: a vs A   │
 │ WARNING  │ lsame_         │ Unmatched      │ ? <->          │ C function     │
 │          │                │ procedure      │ lapack.h:130   │ 'lsame_' has   │
 │          │                │                │                │ no Fortran     │
@@ -6598,15 +6598,6 @@ python -m fcv.cli validate dgemm.f lapack.h --cflags "-Dlapack_int=int -Dlapack_
 │          │                │                │                │ no Fortran     │
 │          │                │                │                │ BIND(C)        │
 │          │                │                │                │ declaration    │
-│ WARNING  │ dgetrf_        │ Array ordering │ ? <-> ?        │ Parameter 'a'  │
-│          │                │ note           │                │ is a           │
-│          │                │                │                │ multi-dimensi… │
-│          │                │                │                │ array. Note    │
-│          │                │                │                │ that Fortran   │
-│          │                │                │                │ is             │
-│          │                │                │                │ column-major   │
-│          │                │                │                │ while C is     │
-│          │                │                │                │ row-major.     │
 │ WARNING  │ lsame_         │ Symbol name    │ ? <-> ?        │ C function     │
 │          │                │ mangling       │                │ 'lsame_' ends  │
 │          │                │                │                │ with an        │
@@ -9304,6 +9295,17 @@ python -m fcv.cli validate dgemm.f lapack.h --cflags "-Dlapack_int=int -Dlapack_
 │          │                │                │                │ interface.     │
 │ WARNING  │ cgetrf_        │ Symbol name    │ ? <-> ?        │ C function     │
 │          │                │ mangling       │                │ 'cgetrf_' ends │
+│          │                │                │                │ with an        │
+│          │                │                │                │ underscore.    │
+│          │                │                │                │ This usually   │
+│          │                │                │                │ indicates a    │
+│          │                │                │                │ mangled        │
+│          │                │                │                │ Fortran name   │
+│          │                │                │                │ rather than a  │
+│          │                │                │                │ proper BIND(C) │
+│          │                │                │                │ interface.     │
+│ WARNING  │ dgetrf_        │ Symbol name    │ ? <-> ?        │ C function     │
+│          │                │ mangling       │                │ 'dgetrf_' ends │
 │          │                │                │                │ with an        │
 │          │                │                │                │ underscore.    │
 │          │                │                │                │ This usually   │
@@ -21076,8 +21078,7 @@ python -m fcv.cli validate dgemm.f lapack.h --cflags "-Dlapack_int=int -Dlapack_
 
 Summary: 1 Errors, 2631 Warnings
 
-INFO: Using Fortran frontend: gfortran (/usr/bin/gfortran) compiler frontend
-INFO: flang-new not found. Using gfortran compiler frontend.
+INFO: Using Fortran frontend: flang (/usr/bin/flang-21) LLVM compiler frontend
 
 ```
 
@@ -21090,9 +21091,9 @@ INFO: flang-new not found. Using gfortran compiler frontend.
 ┃          ┃                ┃                ┃ (Fortran <->   ┃                ┃
 ┃ Severity ┃ Procedure      ┃ Category       ┃ C)             ┃ Message        ┃
 ┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━┩
-│ WARNING  │ dgemm_         │ Unmatched      │ dgemm.f:3 <->  │ Fortran        │
+│ WARNING  │ dgemm          │ Unmatched      │ dgemm.f:0 <->  │ Fortran        │
 │          │                │ procedure      │ ?              │ BIND(C)        │
-│          │                │                │                │ 'dgemm_' not   │
+│          │                │                │                │ 'dgemm' not    │
 │          │                │                │                │ found in C     │
 │          │                │                │                │ header         │
 │ WARNING  │ lsame_         │ Unmatched      │ ? <->          │ C function     │
@@ -42155,8 +42156,7 @@ INFO: flang-new not found. Using gfortran compiler frontend.
 
 Summary: 0 Errors, 2633 Warnings
 
-INFO: Using Fortran frontend: gfortran (/usr/bin/gfortran) compiler frontend
-INFO: flang-new not found. Using gfortran compiler frontend.
+INFO: Using Fortran frontend: flang (/usr/bin/flang-21) LLVM compiler frontend
 
 ```
 

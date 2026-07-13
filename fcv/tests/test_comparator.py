@@ -29,22 +29,23 @@ def test_comparator(name, tc_dir):
     with open(exp_path, 'r') as f:
         expected = json.load(f)
         
-    f_procs = parse_fortran_file(f90_path, platform="lp64")
-    c_procs = parse_c_header(h_path, platform="lp64")
+    from fcv.parsers.flang_parser import parse_fortran_file_flang
     
-    mismatches = compare_interfaces(f_procs, c_procs)
-    mismatches = run_abi_checks(f_procs, c_procs, mismatches)
-    
-    # We just check if the expected categories are in the actual categories
-    actual_cats = [(m.category, m.severity) for m in mismatches]
-    
-    for exp in expected:
-        assert (exp["category"], exp["severity"]) in actual_cats, f"Expected {exp['category']} but got {actual_cats}"
+    for parser_func in (parse_fortran_file, lambda path, plat: parse_fortran_file_flang(path, plat, raise_on_error=True)):
+        f_procs = parser_func(f90_path, "lp64")
+        c_procs = parse_c_header(h_path, platform="lp64")
         
-    # If expected is empty, we expect no errors (warnings are okay unless expected is strictly checked)
-    if len(expected) == 0:
-        errors = [m for m in mismatches if m.severity == "ERROR"]
-        assert len(errors) == 0, f"Expected no errors, got {errors}"
+        mismatches = compare_interfaces(f_procs, c_procs)
+        mismatches = run_abi_checks(f_procs, c_procs, mismatches)
+        
+        actual_cats = [(m.category, m.severity) for m in mismatches]
+        
+        for exp in expected:
+            assert (exp["category"], exp["severity"]) in actual_cats, f"Expected {exp['category']} but got {actual_cats} using {parser_func}"
+            
+        if len(expected) == 0:
+            errors = [m for m in mismatches if m.severity == "ERROR"]
+            assert len(errors) == 0, f"Expected no errors, got {errors} using {parser_func}"
 
 def test_cyclic_structs():
     from fcv.ir.types import StructType, ScalarType, InterfaceProc

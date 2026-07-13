@@ -31,6 +31,7 @@ def main():
         "demo/lapack_temp/dgetrf.f",
         "demo/lapack_temp/lapack.h",
         "--cflags", "-Dlapack_int=int -Dlapack_logical=int -DLAPACK_GLOBAL(name,NAME)=name##_",
+        "--c-suffix", "_",
         "--format", "text"
     ]
     result1 = subprocess.run(cmd1, capture_output=True, text=True)
@@ -41,6 +42,7 @@ def main():
         "demo/lapack_temp/dgemm.f",
         "demo/lapack_temp/lapack.h",
         "--cflags", "-Dlapack_int=int -Dlapack_logical=int -DLAPACK_GLOBAL(name,NAME)=name##_",
+        "--c-suffix", "_",
         "--format", "text"
     ]
     result2 = subprocess.run(cmd2, capture_output=True, text=True)
@@ -64,8 +66,8 @@ This report was generated using **FCValidator** powered by actual compiler front
 
 ## Validation Commands
 ```bash
-python -m fcv.cli validate dgetrf.f lapack.h --cflags "-Dlapack_int=int -Dlapack_logical=int -DLAPACK_GLOBAL(name,NAME)=name##_"
-python -m fcv.cli validate dgemm.f lapack.h --cflags "-Dlapack_int=int -Dlapack_logical=int -DLAPACK_GLOBAL(name,NAME)=name##_"
+python -m fcv.cli validate dgetrf.f lapack.h --c-suffix "_" --cflags "-Dlapack_int=int -Dlapack_logical=int -DLAPACK_GLOBAL(name,NAME)=name##_"
+python -m fcv.cli validate dgemm.f lapack.h --c-suffix "_" --cflags "-Dlapack_int=int -Dlapack_logical=int -DLAPACK_GLOBAL(name,NAME)=name##_"
 ```
 
 ## Validation Output for dgetrf.f
