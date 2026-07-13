@@ -209,7 +209,7 @@ class CParser:
             is_function=(ret_type is not None)
         )
 
-    def parse_header(self, filepath: str) -> List[InterfaceProc]:
+    def parse_header(self, filepath: str, cflags: List[str] = None) -> List[InterfaceProc]:
         try:
             index = cl.Index.create()
             with open(filepath, 'r', encoding='utf-8') as f:
@@ -227,7 +227,10 @@ typedef unsigned char uint8_t;
 typedef _Bool bool;
 """
             unsaved = [(filepath, prelude + "\n" + content)]
-            tu = index.parse(filepath, unsaved_files=unsaved, args=['-x', 'c', '-std=c11'])
+            args = ['-x', 'c', '-std=c11']
+            if cflags:
+                args.extend(cflags)
+            tu = index.parse(filepath, unsaved_files=unsaved, args=args)
         except Exception as e:
             print(f"Error parsing C header (make sure libclang is installed): {e}")
             return []
@@ -254,6 +257,6 @@ typedef _Bool bool;
                     procs.append(self._cursor_to_proc(cursor))
         return procs
 
-def parse_c_header(filepath: str, platform: str = "lp64") -> List[InterfaceProc]:
+def parse_c_header(filepath: str, platform: str = "lp64", cflags: List[str] = None) -> List[InterfaceProc]:
     parser = CParser(platform)
-    return parser.parse_header(filepath)
+    return parser.parse_header(filepath, cflags=cflags)

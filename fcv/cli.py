@@ -21,15 +21,18 @@ def cli():
 @click.option('--platform', type=click.Choice(['lp64', 'ilp64', 'llp64']), default='lp64', help='Integer size model')
 @click.option('--use-flang', is_flag=True, help='Use Flang for parsing')
 @click.option('--no-color', is_flag=True, help='Disable terminal colors')
-def validate(fortran_file, c_header, format, severity, platform, use_flang, no_color):
+@click.option('--cflags', default='', help='Additional C compiler preprocessor flags (e.g. -I/path -DNAME)')
+def validate(fortran_file, c_header, format, severity, platform, use_flang, no_color, cflags):
     """Validate a Fortran interface against a C header."""
+    import shlex
+    cflags_list = shlex.split(cflags) if cflags else None
     
     if use_flang:
         from fcv.parsers.flang_parser import parse_fortran_file_flang
         f_procs = parse_fortran_file_flang(fortran_file, platform)
     else:
         f_procs = parse_fortran_file(fortran_file, platform)
-    c_procs = parse_c_header(c_header, platform)
+    c_procs = parse_c_header(c_header, platform, cflags=cflags_list)
     
     mismatches = compare_interfaces(f_procs, c_procs, platform)
     mismatches = run_abi_checks(f_procs, c_procs, mismatches)

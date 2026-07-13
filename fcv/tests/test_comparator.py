@@ -67,3 +67,27 @@ def test_cyclic_structs():
     mismatches = compare_interfaces([f_proc], [c_proc])
     assert len(mismatches) == 0
 
+def test_cflags_parsing():
+    import tempfile
+    from fcv.parsers.c_parser import parse_c_header
+    
+    with tempfile.NamedTemporaryFile(suffix=".h", mode="w", delete=False) as f:
+        f.write("#ifdef USE_DOUBLE\ntypedef double my_real;\n#else\ntypedef float my_real;\n#endif\nvoid test_func(my_real x);\n")
+        h_path = f.name
+        
+    try:
+        # Parse without cflags -> should default to float (my_real = 4 bytes)
+        procs_default = parse_c_header(h_path, platform="lp64")
+        assert len(procs_default) == 1
+        param_type = procs_default[0].params[0][1]
+        assert param_type.kind_bytes == 4
+        
+        # Parse with cflags "-DUSE_DOUBLE" -> should use double (my_real = 8 bytes)
+        procs_double = parse_c_header(h_path, platform="lp64", cflags=["-DUSE_DOUBLE"])
+        assert len(procs_double) == 1
+        param_type_double = procs_double[0].params[0][1]
+        assert param_type_double.kind_bytes == 8
+    finally:
+        os.remove(h_path)
+
+
