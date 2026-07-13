@@ -16,7 +16,6 @@ Developed as part of the Compiler Design Course Project (Evaluation by HPE Team)
 
 We have provided a complete keynote-style video walkthrough demonstrating **FCValidator** in action against a real-world scientific HPC simulation:
 * **Online Stream (OneDrive Link):** [Watch Video Demonstration](https://1drv.ms/v/c/838889d9a4b62e44/IQABIxRq4Hi8RqEuj9h2iVrmAd3XZ5onEaAMgfwAKfOVsRU?e=bBKwcr)
-* **Local Video File:** [demo/Demo.mp4](file:///c:/Users/tarun/Desktop/USEFUL/Projects/Compiler_Design_Docs_Backup/Compiler%20Design%20EL/fcvalidator/demo/Demo.mp4)
 
 > [!IMPORTANT]
 > **Disclaimer & Evaluation Scope:**
@@ -24,7 +23,7 @@ We have provided a complete keynote-style video walkthrough demonstrating **FCVa
 > 
 > Please note that the Finite Element Method (FEM) web application is a simulated dashboard. The physical plate stress calculations, boundary loads, and material displacement stubs are simplified simulations constructed to clearly showcase tool behavior. However, the command-line static validation (`fcv validate`), AST compiler-level parsing, type-width matching, and terminal reports are **100% authentic, accurate, and run in real-time**.
 
-To learn more about the demo application and how to run it locally on your system, please refer to the specialized **[demo/README.md](file:///c:/Users/tarun/Desktop/USEFUL/Projects/Compiler_Design_Docs_Backup/Compiler%20Design%20EL/fcvalidator/demo/README.md)**.
+To learn more about the demo application and how to run it locally on your system, please refer to the specialized **[demo/README.md](demo/README.md)**.
 
 ---
 
@@ -44,7 +43,7 @@ Common catastrophic mismatches include:
 ## ✨ What Purpose It Serves
 **FCValidator** solves this problem by acting as a strict, static analysis gatekeeper. It reads your Fortran interface and your C header file, translates them into a normalized Intermediate Representation (IR), and statically validates that every single parameter, return type, struct padding, and pointer aligns perfectly at the binary/ABI level.
 
-It does this **without needing to compile the code**. It is designed to be fast, lightweight, and capable of catching the 36 hardest ABI edge-cases known to break mixed-language systems.
+It does this **without needing to compile the code**. It is designed to be fast, lightweight, and capable of catching the 58 hardest ABI edge-cases known to break mixed-language systems.
 
 ---
 
