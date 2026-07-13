@@ -110,6 +110,10 @@ class FortranParser:
         """Parses a type spec like 'integer(c_int)', 'type(c_ptr)', 'type(gridpoint)', etc."""
         type_str = type_str.strip().lower()
         
+        # double precision
+        if "double precision" in type_str:
+            return ScalarType(base="real", kind_bytes=8, is_pointer=False, iso_name="double precision")
+            
         # c_funptr / c_ptr
         if "c_funptr" in type_str:
             return ScalarType(base="integer", kind_bytes=8, pointer_depth=1, iso_name="c_funptr")
@@ -178,6 +182,7 @@ class FortranParser:
         
         proc_re = re.compile(r"(?:([a-z0-9_\(\)\s]+)\s+)?(subroutine|function)\s+([a-z0-9_]+)\s*\((.*?)\)", re.IGNORECASE)
         bind_c_re = re.compile(r"bind\s*\(\s*c\s*(?:,\s*name\s*=\s*['\"](.*?)['\"])?\s*\)", re.IGNORECASE)
+        type_re = re.compile(r"^\s*(integer\s*\(.*?\)|integer|real\s*\(.*?\)|real|double\s+precision|complex\s*\(.*?\)|complex|logical\s*\(.*?\)|logical|character\s*\(.*?\)|character|type\s*\(\s*[a-z0-9_]+\s*\))\s*(\*.*?)?\s+(.*)$", re.IGNORECASE)
         
         for line_num, line in joined_lines:
             line_lower = line.lower()
@@ -188,12 +193,13 @@ class FortranParser:
                 in_interface = False
                 continue
                 
-            if "end subroutine" in line_lower or "end function" in line_lower:
+            if line_lower.strip() == "end" or "end subroutine" in line_lower or "end function" in line_lower:
                 if current_proc:
                     params = []
                     for arg in current_args_order:
-                        if arg in current_args_types:
-                            params.append((arg, current_args_types[arg]))
+                        arg_lower = arg.lower()
+                        if arg_lower in current_args_types:
+                            params.append((arg_lower, current_args_types[arg_lower]))
                     current_proc.params = params
                     procs.append(current_proc)
                     current_proc = None
@@ -328,7 +334,7 @@ class FortranParser:
                                     current_proc.return_type = parsed_type
                             else:
                                 if is_array:
-                                    current_args_types[v_name] = ArrayType(
+                                    current_args_types[v_name_lower] = ArrayType(
                                         element=parsed_type,
                                         rank=rank,
                                         shape=[None] * rank,
@@ -336,7 +342,79 @@ class FortranParser:
                                         is_optional=is_optional
                                     )
                                 else:
-                                    current_args_types[v_name] = parsed_type
+                                    current_args_types[v_name_lower] = parsed_type
+                else:
+                    m_type = type_re.match(line)
+                    if m_type:
+                        type_str = m_type.group(1).strip()
+                        star_sz = m_type.group(2)
+                        right = m_type.group(3).strip()
+                        if star_sz:
+                            type_str += star_sz
+                        parsed_type = self._parse_type_spec(type_str)
+                        if parsed_type:
+                            if isinstance(parsed_type, ScalarType):
+                                parsed_type = ScalarType(
+                                    base=parsed_type.base,
+                                    kind_bytes=parsed_type.kind_bytes,
+                                    is_pointer=parsed_type.pointer_depth > 0,
+                                    pointer_depth=parsed_type.pointer_depth,
+                                    is_value=False,
+                                    is_optional=False,
+                                    iso_name=parsed_type.iso_name,
+                                    is_const=False
+                                )
+                            elif isinstance(parsed_type, StructType):
+                                parsed_type = StructType(
+                                    name=parsed_type.name,
+                                    fields=parsed_type.fields,
+                                    size_bytes=parsed_type.size_bytes,
+                                    alignment=parsed_type.alignment,
+                                    is_bind_c=parsed_type.is_bind_c,
+                                    is_optional=False
+                                )
+                            vars_decl = self._split_respect_parens(right)
+                            for v in vars_decl:
+                                v_name = v.split("(")[0].strip()
+                                is_array = False
+                                rank = 1
+                                is_assumed = False
+                                if "(" in v:
+                                    is_array = True
+                                    inner = v.split("(")[1].split(")")[0]
+                                    is_assumed = (":" in inner)
+                                    rank = inner.count(",") + 1
+                                    
+                                v_name_lower = v_name.lower()
+                                is_ret = False
+                                if getattr(current_proc, 'is_function', False) and (
+                                    v_name_lower == getattr(current_proc, 'result_var', '') or
+                                    v_name_lower == getattr(current_proc, 'fortran_name', '').lower()
+                                ):
+                                    is_ret = True
+                                    
+                                if is_ret:
+                                    if is_array:
+                                        current_proc.return_type = ArrayType(
+                                            element=parsed_type,
+                                            rank=rank,
+                                            shape=[None] * rank,
+                                            is_assumed_shape=is_assumed,
+                                            is_optional=False
+                                        )
+                                    else:
+                                        current_proc.return_type = parsed_type
+                                else:
+                                    if is_array:
+                                        current_args_types[v_name_lower] = ArrayType(
+                                            element=parsed_type,
+                                            rank=rank,
+                                            shape=[None] * rank,
+                                            is_assumed_shape=is_assumed,
+                                            is_optional=False
+                                        )
+                                    else:
+                                        current_args_types[v_name_lower] = parsed_type
 
         return procs
 
