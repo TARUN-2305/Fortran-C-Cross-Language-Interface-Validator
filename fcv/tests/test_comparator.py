@@ -45,3 +45,25 @@ def test_comparator(name, tc_dir):
     if len(expected) == 0:
         errors = [m for m in mismatches if m.severity == "ERROR"]
         assert len(errors) == 0, f"Expected no errors, got {errors}"
+
+def test_cyclic_structs():
+    from fcv.ir.types import StructType, ScalarType, InterfaceProc
+    from fcv.engine.comparator import compare_interfaces
+
+    # Create cyclic Fortran struct: Type Node containing a field pointing to a Node
+    f_node = StructType(name="node", fields=[], size_bytes=16, alignment=8, is_bind_c=True)
+    # add self-referential pointer field: node* next
+    f_node.fields.append(("next", ScalarType(base="integer", kind_bytes=8, pointer_depth=1, is_pointer=True), 8))
+    
+    # Create cyclic C struct: struct Node containing a field pointing to struct Node
+    c_node = StructType(name="Node", fields=[], size_bytes=16, alignment=8, is_bind_c=True)
+    c_node.fields.append(("next", ScalarType(base="integer", kind_bytes=8, pointer_depth=1, is_pointer=True), 8))
+    
+    # Procedures using these structs
+    f_proc = InterfaceProc(name="process", source_file="", source_line=0, return_type=None, params=[("head", f_node)], is_function=False)
+    c_proc = InterfaceProc(name="process", source_file="", source_line=0, return_type=None, params=[("head", c_node)], is_function=False)
+    
+    # Verify compare_interfaces terminates successfully without stack overflow/infinite recursion
+    mismatches = compare_interfaces([f_proc], [c_proc])
+    assert len(mismatches) == 0
+

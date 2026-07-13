@@ -125,20 +125,22 @@ class Comparator:
                                    f"Parameter '{param_name}' signedness mismatch: Fortran {ft.is_unsigned} vs C {ct.is_unsigned}",
                                    proc_name)
 
-    def _compare_types(self, proc_name: str, param_name: str, ft: AnyType, ct: AnyType, is_param: bool = True):
+    def _compare_types(self, proc_name: str, param_name: str, ft: AnyType, ct: AnyType, is_param: bool = True, visited=None):
+        if visited is None:
+            visited = set()
         if isinstance(ft, ScalarType) and isinstance(ct, ScalarType):
             self._compare_scalar(proc_name, param_name, ft, ct, is_param)
         elif isinstance(ft, ArrayType) and isinstance(ct, ArrayType):
             if ft.rank >= 2:
                 self._add_mismatch("COLUMN_ROW_MAJOR", "WARNING", "Fortran 2D array is column-major, C is row-major", proc_name)
-            self._compare_types(proc_name, f"{param_name}[]", ft.element, ct.element, is_param)
+            self._compare_types(proc_name, f"{param_name}[]", ft.element, ct.element, is_param, visited)
         elif isinstance(ft, ArrayType) and isinstance(ct, ScalarType):
             if ct.is_pointer:
                 if getattr(ft, 'is_assumed_shape', False):
                     self._add_mismatch("ARRAY_DESCRIPTOR", "ERROR", "Fortran assumed-shape passes CFI_cdesc_t", proc_name)
                 elif ft.element.base == "character":
                     self._add_mismatch("CHAR_NUL_TERMINATION", "WARNING", "Fortran strings are not NUL terminated", proc_name)
-                self._compare_types(proc_name, f"{param_name}[]", ft.element, ct, is_param)
+                self._compare_types(proc_name, f"{param_name}[]", ft.element, ct, is_param, visited)
             else:
                  if ft.rank >= 2:
                      self._add_mismatch("COLUMN_ROW_MAJOR", "WARNING", "Fortran 2D array is column-major", proc_name)
@@ -149,6 +151,12 @@ class Comparator:
         elif isinstance(ft, ScalarType) and ft.base == "character" and isinstance(ct, ArrayType) and ct.element.base == "integer" and ct.element.kind_bytes == 1:
             pass # OK: CHARACTER(LEN=N) vs char[]
         elif isinstance(ft, StructType) and isinstance(ct, StructType):
+            pair = (ft.name, ct.name)
+            if pair in visited:
+                return # Cycle detected, stop recursion
+            new_visited = set(visited)
+            new_visited.add(pair)
+            
             if not ft.is_bind_c:
                 self._add_mismatch("NON_INTEROPERABLE_TYPE", "ERROR",
                                f"Type '{ft.name}' lacks BIND(C) attribute", proc_name)
@@ -174,7 +182,7 @@ class Comparator:
                     self._add_mismatch("FIELD_ORDER", "ERROR",
                                        f"Field order/name mismatch: Fortran field '{f_fname}' vs C field '{c_fname}'",
                                        proc_name)
-                self._compare_types(proc_name, f"{param_name}.{f_fname}", f_ftype, c_ftype, is_param=False)
+                self._compare_types(proc_name, f"{param_name}.{f_fname}", f_ftype, c_ftype, is_param=False, visited=new_visited)
         elif isinstance(ft, ScalarType) and ft.base == "complex" and isinstance(ct, StructType):
             self._add_mismatch("COMPLEX_STRUCT_ABI", "WARNING", "Complex passed as struct", proc_name)
         elif getattr(ft, 'iso_name', None) == "c_funptr":
@@ -184,10 +192,10 @@ class Comparator:
                 cb_procs = [p for p in getattr(self, 'f_procs', []) if p.name.lower() not in [cp.name.lower() for cp in getattr(self, 'c_procs', [])]]
                 if cb_procs:
                     cb_proc = cb_procs[0]
-                    self._compare_types(proc_name, f"{param_name}.callback_return", cb_proc.return_type, ct.return_type)
+                    self._compare_types(proc_name, f"{param_name}.callback_return", cb_proc.return_type, ct.return_type, visited=visited)
                     for i, (cb_pname, cb_ptype) in enumerate(cb_proc.params):
                         if i < len(ct.params):
-                            self._compare_types(proc_name, f"{param_name}.callback_param{i}", cb_ptype, ct.params[i][1])
+                            self._compare_types(proc_name, f"{param_name}.callback_param{i}", cb_ptype, ct.params[i][1], visited=visited)
             elif ct is not None:
                 self._add_mismatch("FUNPTR_VS_PTR", "ERROR", "c_funptr must map to C function pointer", proc_name)
         else:
