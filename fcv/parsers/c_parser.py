@@ -26,9 +26,11 @@ class CParser:
             
         if cx_type.kind == cl.TypeKind.CONSTANTARRAY or cx_type.kind == cl.TypeKind.INCOMPLETEARRAY:
             elem_type = self._cx_type_to_ir(cx_type.get_array_element_type())
+            shape_size = cx_type.get_array_size() if cx_type.kind == cl.TypeKind.CONSTANTARRAY else None
             if isinstance(elem_type, ScalarType):
-                shape_size = cx_type.get_array_size() if cx_type.kind == cl.TypeKind.CONSTANTARRAY else None
                 return ArrayType(element=elem_type, rank=1, shape=[shape_size])
+            elif isinstance(elem_type, ArrayType):
+                return ArrayType(element=elem_type.element, rank=elem_type.rank + 1, shape=[shape_size] + elem_type.shape)
             
         if cx_type.kind == cl.TypeKind.RECORD or cx_type.kind == cl.TypeKind.ELABORATED:
             # StructType

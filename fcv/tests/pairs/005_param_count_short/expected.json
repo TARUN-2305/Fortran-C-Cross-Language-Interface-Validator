@@ -1,6 +1,6 @@
 [
   {
-    "category": "Parameter count mismatch",
+    "category": "PARAMETER_COUNT_MISMATCH",
     "severity": "ERROR"
   }
 ]

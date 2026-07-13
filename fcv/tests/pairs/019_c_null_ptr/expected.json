@@ -1,6 +1,6 @@
 [
   {
-    "category": "Pointer depth mismatch",
+    "category": "POINTER_DEPTH_MISMATCH",
     "severity": "ERROR"
   }
 ]

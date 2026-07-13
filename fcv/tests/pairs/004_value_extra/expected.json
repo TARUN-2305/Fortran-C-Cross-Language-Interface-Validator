@@ -1,6 +1,6 @@
 [
   {
-    "category": "Value/reference mismatch",
+    "category": "VALUE_REFERENCE_MISMATCH",
     "severity": "ERROR"
   }
 ]

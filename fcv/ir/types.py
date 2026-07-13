@@ -38,3 +38,5 @@ class InterfaceProc:
     params: List[Tuple[str, AnyType]]   # (param_name, type)
     has_hidden_strlen: bool = False    # detected hidden CHARACTER length arg
     is_function: bool = False # Needed to distinguish SUBROUTINE from FUNCTION
+    fortran_name: str = ""
+    is_bind_c: bool = True

@@ -4,6 +4,24 @@ from typing import List, Optional, Tuple, Dict
 from fcv.ir.types import InterfaceProc, ScalarType, ArrayType, StructType, AnyType
 from fcv.ir.type_map import get_fortran_iso_type
 
+def _split_by_comma_outside_paren(s: str) -> List[str]:
+    parts = []
+    current = []
+    depth = 0
+    for char in s:
+        if char == '(':
+            depth += 1
+        elif char == ')':
+            depth -= 1
+        
+        if char == ',' and depth == 0:
+            parts.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+    parts.append("".join(current).strip())
+    return [p for p in parts if p]
+
 class FortranParser:
     def __init__(self, platform: str = "lp64"):
         self.platform = platform
@@ -204,7 +222,7 @@ class FortranParser:
                             if dim_match:
                                 is_array = True
                                 dim_spec = dim_match.group(1)
-                                is_assumed = (":" in dim_spec) or ("*" in dim_spec)
+                                is_assumed = (":" in dim_spec)
                                 rank = dim_spec.count(",") + 1
                                 for bounds in dim_spec.split(","):
                                     bounds = bounds.strip()
@@ -215,7 +233,7 @@ class FortranParser:
                             elif "dimension" in left.lower():
                                 is_array = True
                                 
-                            vars_decl = [v.strip() for v in right.split(",")]
+                            vars_decl = [v.strip() for v in _split_by_comma_outside_paren(right)]
                             for v in vars_decl:
                                 v_name = v.split("(")[0].strip()
                                 v_is_array = is_array
@@ -225,7 +243,7 @@ class FortranParser:
                                 if "(" in v:
                                     v_is_array = True
                                     dim_spec = v.split("(")[1].split(")")[0]
-                                    v_is_assumed = (":" in dim_spec) or ("*" in dim_spec)
+                                    v_is_assumed = (":" in dim_spec)
                                     v_rank = dim_spec.count(",") + 1
                                     v_shape = []
                                     for bounds in dim_spec.split(","):
@@ -387,34 +405,54 @@ class FortranParser:
                         is_array = False
                         rank = 1
                         is_assumed = False
+                        shape_list = []
                         if dim_match:
                             is_array = True
-                            is_assumed = (":" in dim_match.group(1))
-                            rank = dim_match.group(1).count(":") or 1
+                            dim_spec = dim_match.group(1)
+                            is_assumed = (":" in dim_spec)
+                            rank = dim_spec.count(",") + 1
+                            for bounds in dim_spec.split(","):
+                                bounds = bounds.strip()
+                                if bounds.isdigit():
+                                    shape_list.append(int(bounds))
+                                else:
+                                    shape_list.append(None)
                         elif "dimension" in left.lower():
                             is_array = True
                         
-                        vars_decl = [v.strip() for v in right.split(",")]
+                        vars_decl = [v.strip() for v in _split_by_comma_outside_paren(right)]
                         for v in vars_decl:
                             v_name = v.split("(")[0].strip()
+                            v_is_array = is_array
+                            v_rank = rank
+                            v_is_assumed = is_assumed
+                            v_shape = list(shape_list)
                             if "(" in v:
-                                is_array = True
-                                is_assumed = (":" in v)
-                                rank = v.count(":") or 1
+                                v_is_array = True
+                                dim_spec = v.split("(")[1].split(")")[0]
+                                v_is_assumed = (":" in dim_spec)
+                                v_rank = dim_spec.count(",") + 1
+                                v_shape = []
+                                for bounds in dim_spec.split(","):
+                                    bounds = bounds.strip()
+                                    if bounds.isdigit():
+                                        v_shape.append(int(bounds))
+                                    else:
+                                        v_shape.append(None)
                             
-                            if is_array:
+                            if v_is_array:
                                 current_args_types[v_name] = ArrayType(
                                     element=parsed_type,
-                                    rank=rank,
-                                    shape=[None] * rank,
-                                    is_assumed_shape=is_assumed,
+                                    rank=v_rank,
+                                    shape=v_shape if v_shape else [None] * v_rank,
+                                    is_assumed_shape=v_is_assumed,
                                     is_optional=is_optional
                                 )
                             else:
                                 current_args_types[v_name] = parsed_type
                                 
                     elif is_function and current_proc.return_type is None:
-                         v_names = [v.strip() for v in right.split(",")]
+                         v_names = [v.strip() for v in _split_by_comma_outside_paren(right)]
                          if current_proc.name in v_names or getattr(current_proc, 'fortran_name', '') in v_names:
                              current_proc.return_type = self._parse_type_spec(type_str, derived_types)
 

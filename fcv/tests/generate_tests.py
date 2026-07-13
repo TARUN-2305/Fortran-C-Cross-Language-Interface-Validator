@@ -5,25 +5,25 @@ import json
 TEST_CASES = []
 
 categories = [
-    ("int_vs_long", "integer(c_int), value :: x", "void test(long x);", "Scalar size mismatch", "ERROR"),
-    ("float_vs_double", "real(c_float) :: x", "void test(double *x);", "Scalar size mismatch", "ERROR"),
-    ("value_missing", "integer(c_int) :: x", "void test(int x);", "Value/reference mismatch", "ERROR"),
-    ("value_extra", "integer(c_int), value :: x", "void test(int *x);", "Value/reference mismatch", "ERROR"),
-    ("param_count_short", "integer(c_int), value :: x", "void test();", "Parameter count mismatch", "ERROR"),
-    ("param_count_extra", "integer(c_int), value :: x", "void test(int x, int y);", "Parameter count mismatch", "ERROR"),
-    ("hidden_strlen", "character(*) :: x", "void test(char *x);", "Hidden CHARACTER length arg", "ERROR"),
+    ("int_vs_long", "integer(c_int), value :: x", "void test(long x);", "SCALAR_SIZE_MISMATCH", "ERROR"),
+    ("float_vs_double", "real(c_float) :: x", "void test(double *x);", "SCALAR_SIZE_MISMATCH", "ERROR"),
+    ("value_missing", "integer(c_int) :: x", "void test(int x);", "VALUE_REFERENCE_MISMATCH", "ERROR"),
+    ("value_extra", "integer(c_int), value :: x", "void test(int *x);", "VALUE_REFERENCE_MISMATCH", "ERROR"),
+    ("param_count_short", "integer(c_int), value :: x", "void test();", "PARAMETER_COUNT_MISMATCH", "ERROR"),
+    ("param_count_extra", "integer(c_int), value :: x", "void test(int x, int y);", "PARAMETER_COUNT_MISMATCH", "ERROR"),
+    ("hidden_strlen", "character(*) :: x", "void test(char *x);", "HIDDEN_CHARACTER_LENGTH_ARG", "ERROR"),
     ("hidden_strlen_bind", "character(kind=c_char) :: x", "void test(char *x);", None, None),
-    ("return_void_mismatch", "integer(c_int), value :: x", "int test(int x);", "Return type mismatch", "ERROR"),
-    ("return_type_mismatch", "integer(c_int), value :: x\nreal(c_float) :: test", "double test(int x);", "Return type mismatch", "ERROR"),
+    ("return_void_mismatch", "integer(c_int), value :: x", "int test(int x);", "RETURN_TYPE_MISMATCH", "ERROR"),
+    ("return_type_mismatch", "integer(c_int), value :: x\nreal(c_float) :: test", "double test(int x);", "RETURN_TYPE_MISMATCH", "ERROR"),
     ("pointer_depth_1", "type(c_ptr), value :: x", "void test(int *x);", None, None),
     ("pointer_depth_2", "type(c_ptr), value :: x", "void test(int **x);", None, None),
-    ("array_rank", "real(c_float), dimension(:,:) :: x", "void test(float *x);", "Array ordering note", "WARNING"),
-    ("logical_vs_bool", "logical :: x", "void test(int *x);", "Scalar type mismatch", "ERROR"),
+    ("array_rank", "real(c_float), dimension(:,:) :: x", "void test(float *x);", "ARRAY_ORDERING_NOTE", "WARNING"),
+    ("logical_vs_bool", "logical :: x", "void test(int *x);", "SCALAR_TYPE_MISMATCH", "ERROR"),
     ("logical_vs_cbool", "logical(c_bool) :: x", "void test(_Bool *x);", None, None),
-    ("complex_struct", "complex(c_float_complex) :: x", "struct c { float r; float i; }; void test(struct c *x);", "Complex ABI mismatch", "ERROR"),
+    ("complex_struct", "complex(c_float_complex) :: x", "struct c { float r; float i; }; void test(struct c *x);", "COMPLEX_ABI_MISMATCH", "ERROR"),
     ("complex_correct", "complex(c_float_complex) :: x", "void test(float _Complex *x);", None, None),
-    ("column_major_2d", "real(c_float), dimension(:,:) :: x", "void test(float *x);", "Array ordering note", "WARNING"),
-    ("c_null_ptr", "type(c_ptr), value :: x", "void test(int x);", "Pointer depth mismatch", "ERROR")
+    ("column_major_2d", "real(c_float), dimension(:,:) :: x", "void test(float *x);", "ARRAY_ORDERING_NOTE", "WARNING"),
+    ("c_null_ptr", "type(c_ptr), value :: x", "void test(int x);", "POINTER_DEPTH_MISMATCH", "ERROR")
 ]
 
 # Generate 33 tests

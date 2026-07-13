@@ -1,6 +1,6 @@
 [
   {
-    "category": "Scalar size mismatch",
+    "category": "SCALAR_SIZE_MISMATCH",
     "severity": "ERROR"
   }
 ]

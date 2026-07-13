@@ -22,7 +22,7 @@ class ReportFormatter:
         table.add_column("Message", justify="left")
 
         for m in mismatches:
-            sev_color = "red" if m.severity == "ERROR" else "yellow" if m.severity == "WARNING" else "white"
+            sev_color = "red" if m.severity == Severity.ERROR else "yellow" if m.severity == Severity.WARNING else "white"
             table.add_row(
                 f"[bold {sev_color}]{m.severity}[/bold {sev_color}]",
                 f"[cyan]{m.proc_name}[/cyan]",
@@ -32,8 +32,8 @@ class ReportFormatter:
 
         self.console.print(table)
         
-        errors = sum(1 for m in mismatches if m.severity == "ERROR")
-        warnings = sum(1 for m in mismatches if m.severity == "WARNING")
+        errors = sum(1 for m in mismatches if m.severity == Severity.ERROR)
+        warnings = sum(1 for m in mismatches if m.severity == Severity.WARNING)
         
         self.console.print(f"\nSummary: [bold red]{errors} Errors[/bold red], [bold yellow]{warnings} Warnings[/bold yellow]")
 
@@ -41,7 +41,42 @@ class ReportFormatter:
         return json.dumps([m.__dict__ for m in mismatches], indent=2)
 
     def format_sarif(self, mismatches: List[Mismatch]) -> str:
-        # Basic SARIF skeleton
+        rules_map = {}
+        results = []
+        
+        for m in mismatches:
+            rule_id = m.category.replace(" ", "_").upper()
+            if rule_id not in rules_map:
+                rules_map[rule_id] = {
+                    "id": rule_id,
+                    "shortDescription": {"text": m.category.replace("_", " ").title()},
+                    "fullDescription": {"text": m.message}
+                }
+            
+            result = {
+                "ruleId": rule_id,
+                "level": "error" if m.severity == Severity.ERROR else "warning",
+                "message": {"text": f"[{m.proc_name}] {m.message}"}
+            }
+            
+            if m.file_path:
+                # Convert backslashes for SARIF URI compatibility
+                clean_path = m.file_path.replace("\\", "/")
+                # Ensure it prefix with file:/// if absolute and on windows
+                if ":" in clean_path and not clean_path.startswith("file:///"):
+                    clean_path = "file:///" + clean_path
+                result["locations"] = [{
+                    "physicalLocation": {
+                        "artifactLocation": {
+                            "uri": clean_path
+                        },
+                        "region": {
+                            "startLine": m.line_number
+                        }
+                    }
+                }]
+            results.append(result)
+
         sarif = {
             "version": "2.1.0",
             "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
@@ -50,16 +85,10 @@ class ReportFormatter:
                     "driver": {
                         "name": "fcvalidator",
                         "informationUri": "https://github.com/fcvalidator",
-                        "rules": []
+                        "rules": list(rules_map.values())
                     }
                 },
-                "results": []
+                "results": results
             }]
         }
-        for m in mismatches:
-            sarif["runs"][0]["results"].append({
-                "ruleId": m.category.replace(" ", "_").lower(),
-                "level": "error" if m.severity == "ERROR" else "warning",
-                "message": {"text": f"{m.proc_name}: {m.message}"}
-            })
         return json.dumps(sarif, indent=2)

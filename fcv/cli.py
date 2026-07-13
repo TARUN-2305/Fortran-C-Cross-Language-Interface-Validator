@@ -7,6 +7,7 @@ from fcv.parsers.c_parser import parse_c_header
 from fcv.engine.comparator import compare_interfaces, Mismatch
 from fcv.engine.abi import run_abi_checks
 from fcv.report.formatter import ReportFormatter
+from fcv.report.severity import Severity
 
 @click.group()
 def cli():
@@ -53,7 +54,7 @@ def validate(fortran_file, c_header, format, severity, platform, use_flang, no_c
     elif format == 'sarif':
         print(formatter.format_sarif(filtered))
         
-    if any(m.severity == "ERROR" for m in filtered):
+    if any(m.severity == Severity.ERROR for m in filtered):
         sys.exit(1)
     sys.exit(0)
 

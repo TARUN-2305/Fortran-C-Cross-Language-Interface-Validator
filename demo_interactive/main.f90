@@ -6,7 +6,7 @@ program main
   interface
      subroutine c_add(a, b, result) bind(c, name="c_add")
        import :: c_int, c_float, c_double
-       integer(c_int)         :: a       ! ← Removed 'value' to trigger mismatch
+       integer(c_int) , value         :: a       ! ← Removed 'value' to trigger mismatch
        real(c_float)   :: b       ! ← Changed to double (8 bytes) to trigger mismatch
        real(c_float)           :: result  ! passed by reference
      end subroutine c_add

@@ -16,3 +16,9 @@ test.h
 *.o
 *.gch
 *.exe
+*.dll
+*.so
+*.dylib
+*.mp4
+solver
+wrapper

@@ -1,6 +1,6 @@
 [
   {
-    "category": "Complex ABI mismatch",
+    "category": "COMPLEX_ABI_MISMATCH",
     "severity": "ERROR"
   }
 ]

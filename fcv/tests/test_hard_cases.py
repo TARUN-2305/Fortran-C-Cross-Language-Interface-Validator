@@ -58,7 +58,7 @@ def test_hard_comparator(name, tc_dir):
                 if cat in raw_text_upper:
                     actual_cats_upper = [m.category.upper() for m in mismatches]
                     if cat == "HIDDEN_STRLEN_ARG":
-                        has_cat = any("HIDDEN_STRLEN_ARG" in c or "HIDDEN CHARACTER LENGTH ARG" in c for c in actual_cats_upper)
+                        has_cat = any(x in c for c in actual_cats_upper for x in ["HIDDEN_STRLEN_ARG", "HIDDEN_CHARACTER_LENGTH_ARG", "HIDDEN CHARACTER LENGTH ARG"])
                     else:
                         has_cat = any(cat in c or cat in m.message.upper() for m, c in zip(mismatches, actual_cats_upper))
                     assert has_cat, f"Expected mismatch category {cat} in actual mismatches, but it was not reported. Actual mismatches: {[(m.category, m.message) for m in mismatches]}"

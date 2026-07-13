@@ -1,7 +1,9 @@
 from typing import List, Dict
+import sys
 
 from fcv.ir.types import InterfaceProc, ScalarType, ArrayType, StructType, AnyType
 from fcv.engine.comparator import Mismatch
+from fcv.report.severity import Severity
 
 class ABIChecker:
     def __init__(self):
@@ -24,48 +26,56 @@ class ABIChecker:
                         
                         # Complex number ABI
                         if isinstance(f_type, ScalarType) and f_type.base == "complex":
-                            if isinstance(c_type, StructType):
-                                mismatches.append(Mismatch(
-                                    "Complex ABI mismatch", "ERROR",
-                                    f"Parameter '{f_param_name}' is Fortran COMPLEX but C uses a struct instead of _Complex",
-                                    f_proc.name, "complex", "struct"
-                                ))
+                            if isinstance(c_type, StructType) and not f_type.is_value:
+                                exists = any(m.proc_name == f_proc.name and m.category == "COMPLEX_ABI_MISMATCH" for m in mismatches)
+                                if not exists:
+                                    mismatches.append(Mismatch(
+                                        "COMPLEX_ABI_MISMATCH", Severity.ERROR,
+                                        f"Parameter '{f_param_name}' is Fortran COMPLEX but C uses a struct instead of _Complex",
+                                        f_proc.name, "complex", "struct"
+                                    ))
                                 
                         # Array Ordering Warning
                         if isinstance(f_type, ArrayType) and f_type.rank > 1:
-                            mismatches.append(Mismatch(
-                                "Array ordering note", "WARNING",
-                                f"Parameter '{f_param_name}' is a multi-dimensional array. Note that Fortran is column-major while C is row-major.",
-                                f_proc.name, f"array(rank={f_type.rank})", "pointer"
-                            ))
+                            exists = any(m.proc_name == f_proc.name and m.category == "ARRAY_ORDERING_NOTE" for m in mismatches)
+                            if not exists:
+                                mismatches.append(Mismatch(
+                                    "ARRAY_ORDERING_NOTE", Severity.WARNING,
+                                    f"Parameter '{f_param_name}' is a multi-dimensional array. Note that Fortran is column-major while C is row-major.",
+                                    f_proc.name, f"array(rank={f_type.rank})", "pointer"
+                                ))
 
         # 2. Symbol Name Mangling Warning
         f_proc_names = {p.name.lower() for p in f_procs}
         for c_proc in c_procs:
             if c_proc.name.endswith("_") and c_proc.name.lower() not in f_proc_names:
-                # Might be a mangled name without BIND(C)
-                mismatches.append(Mismatch(
-                    "Symbol name mangling", "WARNING",
-                    f"C function '{c_proc.name}' ends with an underscore. This usually indicates a mangled Fortran name rather than a proper BIND(C) interface.",
-                    c_proc.name
-                ))
+                exists = any(m.proc_name == c_proc.name and m.category == "SYMBOL_NAME_MANGLING" for m in mismatches)
+                if not exists:
+                    mismatches.append(Mismatch(
+                        "SYMBOL_NAME_MANGLING", Severity.WARNING,
+                        f"C function '{c_proc.name}' ends with an underscore. This usually indicates a mangled Fortran name rather than a proper BIND(C) interface.",
+                        c_proc.name
+                    ))
 
         # 3. Calling Convention Mismatch
         for f_proc in f_procs:
             if f_proc.name.lower() in c_proc_map:
                 c_proc = c_proc_map[f_proc.name.lower()]
                 # Heuristic: Check if the C source file has __stdcall for this procedure
-                try:
-                    with open(c_proc.source_file, 'r', encoding='utf-8') as f:
-                        c_source = f.read()
-                        if "__stdcall" in c_source and f_proc.name in c_source:
-                            mismatches.append(Mismatch(
-                                "WINDOWS_CALLING_CONV", "WARNING",
-                                "On 32-bit Windows, Fortran DLLs may use __stdcall convention; C defaults to __cdecl. Stack pointer will be corrupted after each call if conventions differ. BIND(C) mandates C calling convention (__cdecl) but verify your Fortran compiler honours this on Win32.",
-                                f_proc.name
-                            ))
-                except Exception:
-                    pass
+                if c_proc.source_file:
+                    try:
+                        with open(c_proc.source_file, 'r', encoding='utf-8') as f:
+                            c_source = f.read()
+                            if "__stdcall" in c_source and f_proc.name in c_source:
+                                exists = any(m.proc_name == f_proc.name and m.category == "WINDOWS_CALLING_CONV" for m in mismatches)
+                                if not exists:
+                                    mismatches.append(Mismatch(
+                                        "WINDOWS_CALLING_CONV", Severity.WARNING,
+                                        "On 32-bit Windows, Fortran DLLs may use __stdcall convention; C defaults to __cdecl. Stack pointer will be corrupted after each call if conventions differ. BIND(C) mandates C calling convention (__cdecl) but verify your Fortran compiler honours this on Win32.",
+                                        f_proc.name
+                                    ))
+                    except (OSError, IOError) as e:
+                        print(f"[Warning] Failed to read source file {c_proc.source_file} for ABI stdcall check: {e}", file=sys.stderr)
 
         return mismatches
 

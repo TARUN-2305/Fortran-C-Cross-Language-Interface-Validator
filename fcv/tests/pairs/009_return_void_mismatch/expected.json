@@ -1,6 +1,6 @@
 [
   {
-    "category": "Return type mismatch",
+    "category": "RETURN_TYPE_MISMATCH",
     "severity": "ERROR"
   }
 ]

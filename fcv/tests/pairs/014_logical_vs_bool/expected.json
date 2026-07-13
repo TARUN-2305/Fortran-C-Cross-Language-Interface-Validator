@@ -1,6 +1,6 @@
 [
   {
-    "category": "Scalar type mismatch",
+    "category": "SCALAR_TYPE_MISMATCH",
     "severity": "ERROR"
   }
 ]
