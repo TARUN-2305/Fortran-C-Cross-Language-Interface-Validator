@@ -90,4 +90,30 @@ def test_cflags_parsing():
     finally:
         os.remove(h_path)
 
+def test_name_mapping_and_prefix_suffix():
+    from fcv.ir.types import InterfaceProc
+    from fcv.engine.comparator import compare_interfaces
+    
+    f_proc1 = InterfaceProc(name="dgetrf", source_file="", source_line=0, return_type=None, params=[], is_function=False)
+    f_proc2 = InterfaceProc(name="foo", source_file="", source_line=0, return_type=None, params=[], is_function=False)
+    
+    c_proc1 = InterfaceProc(name="LAPACKE_dgetrf", source_file="", source_line=0, return_type=None, params=[], is_function=False)
+    c_proc2 = InterfaceProc(name="bar", source_file="", source_line=0, return_type=None, params=[], is_function=False)
+    
+    # 1. Without matching config -> should get unmatched procedure warnings
+    mismatches = compare_interfaces([f_proc1, f_proc2], [c_proc1, c_proc2])
+    unmatched_cats = [m.category for m in mismatches if m.category == "Unmatched procedure"]
+    assert len(unmatched_cats) > 0
+    
+    # 2. With c_prefix="LAPACKE_" and explicit name_map for foo=bar -> should match all, no unmatched warnings!
+    mismatches_mapped = compare_interfaces(
+        [f_proc1, f_proc2], 
+        [c_proc1, c_proc2],
+        c_prefix="LAPACKE_",
+        name_map={"foo": "bar"}
+    )
+    unmatched_cats_mapped = [m.category for m in mismatches_mapped if m.category == "Unmatched procedure"]
+    assert len(unmatched_cats_mapped) == 0
+
+
 

@@ -22,11 +22,23 @@ def cli():
 @click.option('--use-flang', is_flag=True, help='Use Flang for parsing')
 @click.option('--no-color', is_flag=True, help='Disable terminal colors')
 @click.option('--cflags', default='', help='Additional C compiler preprocessor flags (e.g. -I/path -DNAME)')
-def validate(fortran_file, c_header, format, severity, platform, use_flang, no_color, cflags):
+@click.option('--c-prefix', default='', help='C function prefix')
+@click.option('--c-suffix', default='', help='C function suffix')
+@click.option('--f-prefix', default='', help='Fortran function prefix')
+@click.option('--f-suffix', default='', help='Fortran function suffix')
+@click.option('--name-map', default='', help='Comma-separated name mapping in format key=value,key2=value2')
+def validate(fortran_file, c_header, format, severity, platform, use_flang, no_color, cflags, c_prefix, c_suffix, f_prefix, f_suffix, name_map):
     """Validate a Fortran interface against a C header."""
     import shlex
     cflags_list = shlex.split(cflags) if cflags else None
     
+    name_map_dict = {}
+    if name_map:
+        for pair in name_map.split(','):
+            if '=' in pair:
+                k, v = pair.split('=', 1)
+                name_map_dict[k.strip().lower()] = v.strip()
+                
     if use_flang:
         from fcv.parsers.flang_parser import parse_fortran_file_flang
         f_procs = parse_fortran_file_flang(fortran_file, platform)
@@ -34,7 +46,10 @@ def validate(fortran_file, c_header, format, severity, platform, use_flang, no_c
         f_procs = parse_fortran_file(fortran_file, platform)
     c_procs = parse_c_header(c_header, platform, cflags=cflags_list)
     
-    mismatches = compare_interfaces(f_procs, c_procs, platform)
+    mismatches = compare_interfaces(f_procs, c_procs, platform,
+                                    name_map=name_map_dict,
+                                    c_prefix=c_prefix, c_suffix=c_suffix,
+                                    f_prefix=f_prefix, f_suffix=f_suffix)
     mismatches = run_abi_checks(f_procs, c_procs, mismatches)
     
     # Filter by severity

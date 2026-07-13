@@ -17,10 +17,16 @@ class Mismatch:
     c_line: int = 0
 
 class Comparator:
-    def __init__(self, platform: str = "lp64"):
+    def __init__(self, platform: str = "lp64", name_map: Dict[str, str] = None,
+                 c_prefix: str = "", c_suffix: str = "", f_prefix: str = "", f_suffix: str = ""):
         self.mismatches: List[Mismatch] = []
         self.platform = platform
         self.comparing_return = False
+        self.name_map = name_map or {}
+        self.c_prefix = c_prefix
+        self.c_suffix = c_suffix
+        self.f_prefix = f_prefix
+        self.f_suffix = f_suffix
 
     def _add_mismatch(self, category: str, severity: str, msg: str, proc_name: str, ft: str="", ct: str=""):
         f_file, f_line, c_file, c_line = "", 0, "", 0
@@ -203,25 +209,59 @@ class Comparator:
                                f"Parameter '{param_name}' fundamental category mismatch",
                                proc_name, type(ft).__name__, type(ct).__name__)
 
+    def _match_procedure(self, f_name: str, c_proc_map: Dict[str, InterfaceProc]) -> Optional[InterfaceProc]:
+        f_name_lower = f_name.lower()
+        if f_name_lower in c_proc_map:
+            return c_proc_map[f_name_lower]
+            
+        if self.name_map:
+            mapped_name = self.name_map.get(f_name_lower) or self.name_map.get(f_name)
+            if mapped_name and mapped_name.lower() in c_proc_map:
+                return c_proc_map[mapped_name.lower()]
+                
+        for c_name_lower, c_proc in c_proc_map.items():
+            adjusted_f = self.c_prefix.lower() + f_name_lower + self.c_suffix.lower()
+            if adjusted_f == c_name_lower:
+                return c_proc
+                
+            c_stripped = c_name_lower
+            if self.c_prefix and c_stripped.startswith(self.c_prefix.lower()):
+                c_stripped = c_stripped[len(self.c_prefix):]
+            if self.c_suffix and c_stripped.endswith(self.c_suffix.lower()):
+                c_stripped = c_stripped[:-len(self.c_suffix)] if len(self.c_suffix) > 0 else c_stripped
+                
+            f_stripped = f_name_lower
+            if self.f_prefix and f_stripped.startswith(self.f_prefix.lower()):
+                f_stripped = f_stripped[len(self.f_prefix):]
+            if self.f_suffix and f_stripped.endswith(self.f_suffix.lower()):
+                f_stripped = f_stripped[:-len(self.f_suffix)] if len(self.f_suffix) > 0 else f_stripped
+                
+            if c_stripped == f_stripped:
+                return c_proc
+                
+        return None
 
     def compare(self, f_procs: List[InterfaceProc], c_procs: List[InterfaceProc]) -> List[Mismatch]:
         self.f_procs = f_procs
         self.c_procs = c_procs
         c_proc_map = {p.name.lower(): p for p in c_procs}
         f_proc_map = {p.name.lower(): p for p in f_procs}
+        matched_c_names = set()
 
         for name, f_proc in f_proc_map.items():
-            if name not in c_proc_map:
+            c_proc = self._match_procedure(f_proc.name, c_proc_map)
+            if c_proc is None:
                 if len(f_proc_map) == 1 and len(c_proc_map) == 1:
                     c_proc = list(c_proc_map.values())[0]
-                    self._add_mismatch("Symbol name mangling", "WARNING", f"Mapped {name} to {c_proc.name}", name)
+                    self._add_mismatch("Symbol name mangling", "WARNING", f"Mapped {f_proc.name} to {c_proc.name}", f_proc.name)
+                    matched_c_names.add(c_proc.name.lower())
                 else:
                     self._add_mismatch("Unmatched procedure", "WARNING",
                                        f"Fortran BIND(C) '{f_proc.name}' not found in C header",
                                        f_proc.name)
                     continue
             else:
-                c_proc = c_proc_map[name]
+                matched_c_names.add(c_proc.name.lower())
                 
             # If function is bind(c) and there's a potential Windows vs Linux mismatch
             if f_proc.is_function or len(f_proc.params) > 0:
@@ -238,7 +278,6 @@ class Comparator:
                 self._add_mismatch("Parameter count mismatch", "ERROR",
                                    f"Fortran has {len(f_proc.params)} params, C has {len(c_proc.params)}",
                                    f_proc.name, str(len(f_proc.params)), str(len(c_proc.params)))
-                # Don't return, do partial comparison
             
             for i, (f_param_name, f_type) in enumerate(f_proc.params):
                 if i < len(c_proc.params):
@@ -260,12 +299,14 @@ class Comparator:
                 self.comparing_return = False
 
         for name, c_proc in c_proc_map.items():
-            if name not in f_proc_map:
+            if name not in matched_c_names:
                 self._add_mismatch("Unmatched procedure", "WARNING",
                                    f"C function '{c_proc.name}' has no Fortran BIND(C) declaration",
                                    c_proc.name)
 
         return self.mismatches
 
-def compare_interfaces(f_procs: List[InterfaceProc], c_procs: List[InterfaceProc], platform: str = "lp64") -> List[Mismatch]:
-    return Comparator(platform).compare(f_procs, c_procs)
+def compare_interfaces(f_procs: List[InterfaceProc], c_procs: List[InterfaceProc], platform: str = "lp64",
+                       name_map: Dict[str, str] = None, c_prefix: str = "", c_suffix: str = "",
+                       f_prefix: str = "", f_suffix: str = "") -> List[Mismatch]:
+    return Comparator(platform, name_map, c_prefix, c_suffix, f_prefix, f_suffix).compare(f_procs, c_procs)
