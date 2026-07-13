@@ -118,13 +118,13 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - name: Install FCValidator
+      - name: Install Compilers & FCValidator
         run: |
-          sudo apt-get install -y libclang-dev
+          sudo apt-get install -y libclang-dev gfortran flang-21
           pip install .
       - name: Run Verification
         run: |
-          fcv validate src/interface.f90 include/header.h --format sarif > fcv-results.sarif
+          fcv validate src/interface.f90 include/header.h --use-flang --format sarif > fcv-results.sarif
       - name: Upload SARIF Results
         uses: github/codeql-action/upload-sarif@v2
         with:
@@ -133,34 +133,10 @@ jobs:
 
 ---
 
-## 📸 Visual Demo Catalogue (Screenshots)
-
-Below are the actual terminal demonstrations capturing the step-by-step installation and diagnostic workflow of FCValidator:
-
-### 1. Environment Build & Installation
-Executing `./build.sh` provisions the local virtual environment and installs the package in editable mode.
-![01_install](screenshots/01_install.png)
-
-### 2. High-Severity Mismatch Detection (TC-A-001)
-Validating a character flag interface that lacks `BIND(C)` highlights the legacy calling convention mismatch, showing high-severity `ERROR` markers and argument list mismatches directly on the console.
-![02_error_detection](screenshots/02_error_detection.png)
-
-### 3. Validated Clean Interface Success Banner (TC-A-003)
-Validating a fully compliant Fortran-C interface pair yields a clean status confirmation, showcasing the glowing green `No mismatches found!` banner.
-![03_clean_interface](screenshots/03_clean_interface.png)
-
-### 4. Colorized Structured JSON Output (TC-B-001)
-Invoking the validator with `--format json` outputs a perfectly indented and readable JSON array, ideal for scripting integrations.
-![04_json_output](screenshots/04_json_output.png)
-
-### 5. Automated Regression Test Suite Execution
-Running the full diagnostic checks executes all 68 interface edge scenarios, displaying green checkmarks and test statistics.
-![05_pytest_passing](screenshots/05_pytest_passing.png)
-
----
-
 ## 📂 Project Organization & Documentation
-For a deep dive into the design and evaluation of the project, please refer to the following documents:
-- **[DESIGN.md](DESIGN.md)**: Details the parser architecture, language-neutral IR, and alternative design decisions.
-- **[IMPLEMENTATION.md](IMPLEMENTATION.md)**: Walks through the Clang AST compiler frontend integration and Fortran parsing algorithms.
-- **[EVALUATION.md](EVALUATION.md)**: Tabulates the complete 68 test suite, platform metrics, and reference LAPACK evaluation reports.
+For a deep dive into the design and evaluation of the project, please refer to the following documents in the workspace:
+- **[docs/design.md](docs/design.md)**: Details the parser architecture, language-neutral IR, and alternative design decisions.
+- **[docs/user_guide.md](docs/user_guide.md)**: Comprehensive CLI usage guide with full command-line help outputs and syntax parameters.
+- **[docs/type_mapping_reference.md](docs/type_mapping_reference.md)**: Tabulates all supported type mappings across Fortran ISO bindings and C standard types.
+- **[docs/lapack_report.md](docs/lapack_report.md)**: Statically generated cross-language validation report on Reference-LAPACK library.
+
